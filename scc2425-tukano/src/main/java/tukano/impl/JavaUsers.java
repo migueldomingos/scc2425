@@ -5,13 +5,16 @@ import static tukano.api.Result.error;
 import static tukano.api.Result.errorOrResult;
 import static tukano.api.Result.errorOrValue;
 import static tukano.api.Result.ok;
-import static tukano.api.Result.ErrorCode.BAD_REQUEST;
-import static tukano.api.Result.ErrorCode.FORBIDDEN;
+import static tukano.api.Result.ErrorCode.*;
 
 import java.util.List;
 import java.util.concurrent.Executors;
+import java.util.function.Supplier;
 import java.util.logging.Logger;
 
+import com.azure.cosmos.*;
+import com.azure.cosmos.models.CosmosItemRequestOptions;
+import com.azure.cosmos.models.PartitionKey;
 import tukano.api.Result;
 import tukano.api.User;
 import tukano.api.Users;
@@ -22,6 +25,10 @@ public class JavaUsers implements Users {
 	private static Logger Log = Logger.getLogger(JavaUsers.class.getName());
 
 	private static Users instance;
+
+	private CosmosClient client;
+	private CosmosDatabase db;
+	private CosmosContainer container;
 	
 	synchronized public static Users getInstance() {
 		if( instance == null )
@@ -29,7 +36,22 @@ public class JavaUsers implements Users {
 		return instance;
 	}
 	
-	private JavaUsers() {}
+	private JavaUsers() {
+
+		client = new CosmosClientBuilder()
+				.endpoint(System.getProperty("COLOCAR AQUI URL!!!!!!!!!!!!!!!!!!!!!!"))
+				.key(System.getProperty("COLOCAR AQUI KEY!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"))
+				//.directMode()
+				.gatewayMode()
+				// replace by .directMode() for better performance
+				.consistencyLevel(ConsistencyLevel.SESSION)
+				.connectionSharingAcrossClientsEnabled(true)
+				.contentResponseOnWriteEnabled(true)
+				.buildClient();
+
+		db = client.getDatabase(System.getProperty("COLOCAR AQUI NOME DB!!!!!!!!!!!!!!!!!!!!!"));
+		container = db.getContainer(Users.NAME);
+	}
 	
 	@Override
 	public Result<String> createUser(User user) {
@@ -38,7 +60,9 @@ public class JavaUsers implements Users {
 		if( badUserInfo( user ) )
 				return error(BAD_REQUEST);
 
-		return errorOrValue( DB.insertOne( user), user.getUserId() );
+
+		return tryCatch( () -> container.createItem(user).getItem().getUserId());
+		//return errorOrValue( DB.insertOne( user), user.getUserId() );
 	}
 
 	@Override
@@ -47,8 +71,15 @@ public class JavaUsers implements Users {
 
 		if (userId == null)
 			return error(BAD_REQUEST);
-		
-		return validatedUserOrError( DB.getOne( userId, User.class), pwd);
+
+		Result<User> user = tryCatch( () -> container.readItem(userId, new PartitionKey(userId), User.class).getItem());
+
+		if (user.isOK() && !user.value().getPwd().equals(pwd)){
+			return Result.error(FORBIDDEN);
+		}
+
+		return user;
+		//return validatedUserOrError( DB.getOne( userId, User.class), pwd);
 	}
 
 	@Override
@@ -58,7 +89,19 @@ public class JavaUsers implements Users {
 		if (badUpdateUserInfo(userId, pwd, other))
 			return error(BAD_REQUEST);
 
-		return errorOrResult( validatedUserOrError(DB.getOne( userId, User.class), pwd), user -> DB.updateOne( user.updateFrom(other)));
+		Result<User> oldUserResult = getUser(userId, pwd);
+		if (!oldUserResult.isOK())
+			return oldUserResult;
+
+		if (other.getPwd() == null)
+			other.setPwd(oldUserResult.value().getPwd());
+		if (other.getEmail() == null)
+			other.setEmail(oldUserResult.value().getEmail());
+		if (other.getDisplayName() == null)
+			other.setDisplayName(oldUserResult.value().getDisplayName());
+
+
+		return tryCatch( () -> container.upsertItem(other).getItem());
 	}
 
 	@Override
@@ -68,16 +111,16 @@ public class JavaUsers implements Users {
 		if (userId == null || pwd == null )
 			return error(BAD_REQUEST);
 
-		return errorOrResult( validatedUserOrError(DB.getOne( userId, User.class), pwd), user -> {
+		Result<User> oldUserResult = getUser(userId, pwd);
+		if (!oldUserResult.isOK())
+			return oldUserResult;
 
-			// Delete user shorts and related info asynchronously in a separate thread
-			Executors.defaultThreadFactory().newThread( () -> {
-				JavaShorts.getInstance().deleteAllShorts(userId, pwd, Token.get(userId));
-				JavaBlobs.getInstance().deleteAllBlobs(userId, Token.get(userId));
-			}).start();
-			
-			return DB.deleteOne( user);
-		});
+		Result<Object> result = tryCatch( () -> container.deleteItem(oldUserResult.value(), new CosmosItemRequestOptions()).getItem());
+
+		if(result.isOK())
+			return oldUserResult;
+		else
+			return error(BAD_REQUEST);
 	}
 
 	@Override
@@ -107,5 +150,26 @@ public class JavaUsers implements Users {
 	
 	private boolean badUpdateUserInfo( String userId, String pwd, User info) {
 		return (userId == null || pwd == null || info.getUserId() != null && ! userId.equals( info.getUserId()));
+	}
+
+	private <T> Result<T> tryCatch( Supplier<T> supplierFunc) {
+		try {
+			return Result.ok(supplierFunc.get());
+		} catch( CosmosException ce ) {
+			//ce.printStackTrace();
+			return Result.error ( errorCodeFromStatus(ce.getStatusCode() ));
+		} catch( Exception x ) {
+			x.printStackTrace();
+			return Result.error(INTERNAL_ERROR);
+		}
+	}
+
+	private static Result.ErrorCode errorCodeFromStatus( int status ) {
+		return switch( status ) {
+			case 200 -> OK;
+			case 404 -> NOT_FOUND;
+			case 409 -> CONFLICT;
+			default -> INTERNAL_ERROR;
+		};
 	}
 }
