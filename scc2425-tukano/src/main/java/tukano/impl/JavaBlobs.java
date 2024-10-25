@@ -19,8 +19,6 @@ import com.azure.storage.blob.models.ListBlobsOptions;
 import tukano.api.Blobs;
 import tukano.api.Result;
 import tukano.impl.rest.TukanoRestServer;
-import tukano.impl.storage.BlobStorage;
-import tukano.impl.storage.FilesystemStorage;
 import utils.Hash;
 import utils.Hex;
 
@@ -132,6 +130,7 @@ public class JavaBlobs implements Blobs {
 		}
 
 		try {
+			// Cria um BlobContainerClient usando a connectionString e o nome do container
 			BlobContainerClient containerClient = new BlobContainerClientBuilder()
 					.connectionString(storageConnectionString)
 					.containerName(Blobs.NAME)
@@ -139,18 +138,20 @@ public class JavaBlobs implements Blobs {
 
 			BlobClient blob = containerClient.getBlobClient(blobId);
 
+			// Verifica se o blob existe
 			if (blob.exists()) {
-				blob.delete();
-				System.out.println("Blob deleted: " + blobId);
+				blob.delete(); // Exclui o blob
+				Log.info(() -> format("Blob deleted: %s", blobId));
+				return Result.ok();
 			} else {
-				System.out.println("Blob not found: " + blobId);
+				Log.warning(() -> format("Blob not found: %s", blobId));
+				return error(NOT_FOUND);
 			}
 
 		} catch (Exception e) {
 			e.printStackTrace();
+			return error(INTERNAL_ERROR); // Retorna erro genérico em caso de exceção
 		}
-
-		return Result.ok();
 	}
 
 
@@ -169,7 +170,7 @@ public class JavaBlobs implements Blobs {
 					.buildClient();
 
 			// Assuming each blob has a userId as part of its metadata or blobId prefix
-			PagedIterable<BlobItem> blobs = containerClient.listBlobs(new ListBlobsOptions().setPrefix(userId));
+			PagedIterable<BlobItem> blobs = containerClient.listBlobs();
 
 			for (BlobItem blobItem : blobs) {
 				BlobClient blobClient = containerClient.getBlobClient(blobItem.getName());
@@ -179,7 +180,7 @@ public class JavaBlobs implements Blobs {
 
 		} catch (Exception e) {
 			e.printStackTrace();
-			return error(INTERNAL_SERVER_ERROR);
+			return error(INTERNAL_ERROR);
 		}
 
 		return Result.ok();
