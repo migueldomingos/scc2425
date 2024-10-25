@@ -28,7 +28,7 @@ public class JavaBlobs implements Blobs {
 	private static Logger Log = Logger.getLogger(JavaBlobs.class.getName());
 
 	public String baseURI;
-	private String storageConnectionString;
+	private BlobContainerClient containerClient;
 	//private BlobStorage storage;
 	
 	synchronized public static Blobs getInstance() {
@@ -40,7 +40,11 @@ public class JavaBlobs implements Blobs {
 	private JavaBlobs() {
 		//storage = new FilesystemStorage();
 		baseURI = String.format("%s/%s/", TukanoRestServer.serverURI, Blobs.NAME);
-		storageConnectionString = System.getProperty("BlobStoreConnection");
+
+		containerClient = new BlobContainerClientBuilder()
+				.connectionString(System.getProperty("BlobStoreConnection"))
+				.containerName(Blobs.NAME)
+				.buildClient();
 	}
 	
 	@Override
@@ -52,15 +56,10 @@ public class JavaBlobs implements Blobs {
 
 		try {
 			BinaryData data = BinaryData.fromBytes(bytes);
-			BlobContainerClient containerClient = new BlobContainerClientBuilder()
-					.connectionString(storageConnectionString)
-					.containerName(Blobs.NAME)
-					.buildClient();
 
 			BlobClient blobClient = containerClient.getBlobClient(blobId);
 
 			if (blobClient.exists()) {
-				// Blob exists, download it to compare hashes
 				byte[] existingBytes = blobClient.downloadContent().toBytes();
 
 				// Compare the hashes of the existing blob and new bytes
@@ -68,11 +67,9 @@ public class JavaBlobs implements Blobs {
 				String newHash = Hex.of(Hash.sha256(bytes));
 
 				if (existingHash.equals(newHash)) {
-					// Blob exists and matches the uploaded bytes
 					Log.info(() -> format("Blob already exists and matches: blobId = %s", blobId));
 					return Result.ok();
 				} else {
-					// Blob exists but the bytes do not match
 					Log.warning(() -> format("Conflict: Blob exists but content differs: blobId = %s", blobId));
 					return error(CONFLICT);
 				}
@@ -97,11 +94,6 @@ public class JavaBlobs implements Blobs {
 
 		try {
 			byte[] arr;
-
-			BlobContainerClient containerClient = new BlobContainerClientBuilder()
-					.connectionString(storageConnectionString)
-					.containerName(Blobs.NAME)
-					.buildClient();
 
 			BlobClient blobClient = containerClient.getBlobClient(blobId);
 
@@ -130,17 +122,10 @@ public class JavaBlobs implements Blobs {
 		}
 
 		try {
-			// Cria um BlobContainerClient usando a connectionString e o nome do container
-			BlobContainerClient containerClient = new BlobContainerClientBuilder()
-					.connectionString(storageConnectionString)
-					.containerName(Blobs.NAME)
-					.buildClient();
-
 			BlobClient blob = containerClient.getBlobClient(blobId);
 
-			// Verifica se o blob existe
 			if (blob.exists()) {
-				blob.delete(); // Exclui o blob
+				blob.delete();
 				Log.info(() -> format("Blob deleted: %s", blobId));
 				return Result.ok();
 			} else {
@@ -150,7 +135,7 @@ public class JavaBlobs implements Blobs {
 
 		} catch (Exception e) {
 			e.printStackTrace();
-			return error(INTERNAL_ERROR); // Retorna erro genérico em caso de exceção
+			return error(INTERNAL_ERROR);
 		}
 	}
 
@@ -164,11 +149,6 @@ public class JavaBlobs implements Blobs {
 		}
 
 		try {
-			BlobContainerClient containerClient = new BlobContainerClientBuilder()
-					.connectionString(storageConnectionString)
-					.containerName(Blobs.NAME)
-					.buildClient();
-
 			// Assuming each blob has a userId as part of its metadata or blobId prefix
 			PagedIterable<BlobItem> blobs = containerClient.listBlobs();
 
