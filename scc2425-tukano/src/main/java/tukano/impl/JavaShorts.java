@@ -41,8 +41,6 @@ public class JavaShorts implements Shorts {
 	private CosmosDatabase db;
 	private CosmosContainer container;
 
-	private Users users;
-	
 	synchronized public static Shorts getInstance() {
 		if( instance == null )
 			instance = new JavaShorts();
@@ -63,8 +61,6 @@ public class JavaShorts implements Shorts {
 
 		db = client.getDatabase(System.getProperty("COSMOSDB_DATABASE"));
 		container = db.getContainer(Shorts.NAME);
-
-		users = JavaUsers.getInstance();;
 	}
 	
 	
@@ -76,7 +72,7 @@ public class JavaShorts implements Shorts {
 		var blobUrl = format("%s/%s", Blobs.LINK, shortId);
 		var shrt = new Short(shortId, userId, blobUrl);
 
-		Result<User> user = users.getUser(userId, password);
+		Result<User> user = okUser(userId, password);
 
 		if (user.error().equals(NOT_FOUND))
 			return Result.error(NOT_FOUND);
@@ -107,7 +103,7 @@ public class JavaShorts implements Shorts {
 		if (shrt.error().equals(NOT_FOUND))
 			return Result.error(NOT_FOUND);
 
-		Result<User> user = users.getUser(shrt.value().getOwnerId(), password);
+		Result<User> user = okUser(shrt.value().getOwnerId(), password);
 
 		if (!user.isOK())
 			return Result.error(FORBIDDEN);
@@ -121,28 +117,14 @@ public class JavaShorts implements Shorts {
 	public Result<List<String>> getShorts(String userId) {
 		Log.info(() -> format("getShorts : userId = %s\n", userId));
 
-		// Verifica se o usuário existe
-		Result<List<User>> lusers = users.searchUsers(userId);
-		if (!lusers.isOK()) {
-			return Result.error(BAD_REQUEST);
-		}
-		boolean aux = false;
-		for (User u: lusers.value()){
-			if (u.getUserId().equals(userId)) {
-				aux = true;
-				break;
-			}
-		}
-		if (!aux) {
+		if (!okUser(userId).isOK()) {
 			return Result.error(NOT_FOUND);
 		}
 
-		// Define a query SQL para recuperar o shortId dos Shorts do usuário
 		String query = format("SELECT s.shortId FROM Short s WHERE s.ownerId = '%s'", userId);
 		List<String> shortIds = new ArrayList<>();
 
 		try {
-			// Executa a consulta e adiciona os IDs na lista
 			CosmosPagedIterable<String> results = container.queryItems(query, new CosmosQueryRequestOptions(), String.class);
 			results.forEach(shortIds::add);
 
@@ -156,31 +138,104 @@ public class JavaShorts implements Shorts {
 	@Override
 	public Result<Void> follow(String userId1, String userId2, boolean isFollowing, String password) {
 		Log.info(() -> format("follow : userId1 = %s, userId2 = %s, isFollowing = %s, pwd = %s\n", userId1, userId2, isFollowing, password));
-	
-		
-		return errorOrResult( okUser(userId1, password), user -> {
-			var f = new Following(userId1, userId2);
-			return errorOrVoid( okUser( userId2), isFollowing ? DB.insertOne( f ) : DB.deleteOne( f ));	
-		});			
+
+		Result<User> follower = okUser(userId1, password);
+
+		if (follower.error().equals(NOT_FOUND)) {
+			return Result.error(NOT_FOUND);
+		}
+
+		if (!follower.isOK()) {
+			return Result.error(FORBIDDEN);
+		}
+
+
+		if (!okUser(userId2).isOK()) {
+			return Result.error(NOT_FOUND);
+		}
+
+		Following f = new Following(userId1, userId2);
+
+		if (isFollowing) {
+			//we want to follow the person
+
+			Result<Following> res = tryCatch( () -> container.createItem(f).getItem());
+			if (res.isOK())
+				return Result.ok();
+			else
+				return Result.error(res.error());
+		} else {
+			//we want to unfollow the person
+
+			Result<Object> res = tryCatch( () -> container.deleteItem(f, new CosmosItemRequestOptions()).getItem());
+			if (res.isOK())
+				return Result.ok();
+			else
+				return Result.error(res.error());
+		}
 	}
 
 	@Override
 	public Result<List<String>> followers(String userId, String password) {
 		Log.info(() -> format("followers : userId = %s, pwd = %s\n", userId, password));
 
-		var query = format("SELECT f.follower FROM Following f WHERE f.followee = '%s'", userId);		
-		return errorOrValue( okUser(userId, password), DB.sql(query, String.class));
+		Result<User> user = okUser(userId, password);
+
+		if (user.error().equals(NOT_FOUND)) {
+			return Result.error(NOT_FOUND);
+		}
+
+		if (!user.isOK()) {
+			return Result.error(FORBIDDEN);
+		}
+
+		String query = format("SELECT f.follower FROM Following f WHERE f.followee = '%s'", userId);
+		List<String> followers = new ArrayList<>();
+
+		try {
+			CosmosPagedIterable<String> results = container.queryItems(query, new CosmosQueryRequestOptions(), String.class);
+			results.forEach(followers::add);
+
+			return Result.ok(followers);
+		} catch (CosmosException e) {
+			return Result.error(INTERNAL_ERROR);
+		}
+
 	}
 
 	@Override
 	public Result<Void> like(String shortId, String userId, boolean isLiked, String password) {
 		Log.info(() -> format("like : shortId = %s, userId = %s, isLiked = %s, pwd = %s\n", shortId, userId, isLiked, password));
 
-		
-		return errorOrResult( getShort(shortId), shrt -> {
-			var l = new Likes(userId, shortId, shrt.getOwnerId());
-			return errorOrVoid( okUser( userId, password), isLiked ? DB.insertOne( l ) : DB.deleteOne( l ));	
-		});
+		Result<User> user = okUser(userId, password);
+
+		if (user.error().equals(NOT_FOUND)) {
+			return Result.error(NOT_FOUND);
+		}
+
+		if (!user.isOK()) {
+			return Result.error(FORBIDDEN);
+		}
+
+		Result<Short> resShort = getShort(shortId);
+		if (!resShort.isOK())
+			return Result.error(NOT_FOUND);
+
+		Likes l = new Likes(userId, shortId, resShort.value().getOwnerId());
+
+		if (isLiked) {
+			Result<Likes> res = tryCatch( () -> container.createItem(l).getItem());
+			if (res.isOK())
+				return Result.ok();
+			else
+				return Result.error(res.error());
+		} else {
+			Result<Object> res = tryCatch( () -> container.deleteItem(l, new CosmosItemRequestOptions()).getItem());
+			if (res.isOK())
+				return Result.ok();
+			else
+				return Result.error(res.error());
+		}
 	}
 
 	@Override
