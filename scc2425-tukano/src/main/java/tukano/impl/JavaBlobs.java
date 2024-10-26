@@ -15,7 +15,6 @@ import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobContainerClientBuilder;
 import com.azure.storage.blob.models.BlobItem;
-import com.azure.storage.blob.models.ListBlobsOptions;
 import tukano.api.Blobs;
 import tukano.api.Result;
 import tukano.impl.rest.TukanoRestServer;
@@ -29,8 +28,7 @@ public class JavaBlobs implements Blobs {
 
 	public String baseURI;
 	private BlobContainerClient containerClient;
-	//private BlobStorage storage;
-	
+
 	synchronized public static Blobs getInstance() {
 		if( instance == null )
 			instance = new JavaBlobs();
@@ -38,7 +36,6 @@ public class JavaBlobs implements Blobs {
 	}
 	
 	private JavaBlobs() {
-		//storage = new FilesystemStorage();
 		baseURI = String.format("%s/%s/", TukanoRestServer.serverURI, Blobs.NAME);
 
 		containerClient = new BlobContainerClientBuilder()

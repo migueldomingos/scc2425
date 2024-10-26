@@ -2,17 +2,13 @@ package tukano.impl;
 
 import static java.lang.String.format;
 import static tukano.api.Result.error;
-import static tukano.api.Result.errorOrResult;
-import static tukano.api.Result.errorOrValue;
 import static tukano.api.Result.ok;
 import static tukano.api.Result.ErrorCode.*;
 
 import java.util.List;
-import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.stream.Collectors;
 
 import com.azure.cosmos.*;
@@ -21,9 +17,11 @@ import com.azure.cosmos.models.PartitionKey;
 import com.azure.cosmos.models.CosmosQueryRequestOptions;
 import com.azure.cosmos.util.CosmosPagedIterable;
 import tukano.api.Result;
+import tukano.api.Shorts;
 import tukano.api.User;
 import tukano.api.Users;
-import utils.DB;
+import tukano.api.rest.RestShorts;
+import utils.Sleep;
 
 public class JavaUsers implements Users {
 	
@@ -34,6 +32,8 @@ public class JavaUsers implements Users {
 	private CosmosClient client;
 	private CosmosDatabase db;
 	private CosmosContainer container;
+
+	private Shorts shorts;
 	
 	synchronized public static Users getInstance() {
 		if( instance == null )
@@ -56,6 +56,8 @@ public class JavaUsers implements Users {
 
 		db = client.getDatabase(System.getProperty("COSMOSDB_DATABASE"));
 		container = db.getContainer(Users.NAME);
+
+		shorts = JavaShorts.getInstance();
 	}
 	
 	@Override
@@ -67,7 +69,6 @@ public class JavaUsers implements Users {
 
 
 		return tryCatch( () -> container.createItem(user).getItem().getUserId());
-		//return errorOrValue( DB.insertOne( user), user.getUserId() );
 	}
 
 	@Override
@@ -84,7 +85,6 @@ public class JavaUsers implements Users {
 		}
 
 		return user;
-		//return validatedUserOrError( DB.getOne( userId, User.class), pwd);
 	}
 
 	@Override
@@ -121,8 +121,15 @@ public class JavaUsers implements Users {
 
 		Result<Object> result = tryCatch( () -> container.deleteItem(oldUserResult.value(), new CosmosItemRequestOptions()).getItem());
 
-		if(result.isOK())
+		if(result.isOK()){
+			shorts.deleteAllShorts(userId, pwd, RestShorts.TOKEN);
+			/*Result<Void> resultDeleteAllShorts = null;
+			while (resultDeleteAllShorts == null || !resultDeleteAllShorts.isOK()) {
+				Sleep.seconds(1);
+				resultDeleteAllShorts = shorts.deleteAllShorts(userId, pwd, RestShorts.TOKEN);
+			}*/
 			return oldUserResult;
+		}
 		else
 			return error(BAD_REQUEST);
 	}
