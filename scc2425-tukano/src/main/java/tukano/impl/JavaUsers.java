@@ -21,7 +21,6 @@ import tukano.api.Shorts;
 import tukano.api.User;
 import tukano.api.Users;
 import tukano.api.rest.RestShorts;
-import utils.Sleep;
 
 public class JavaUsers implements Users {
 	
