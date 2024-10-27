@@ -25,15 +25,13 @@ import utils.Sleep;
 
 public class JavaUsers implements Users {
 	
-	private static Logger Log = Logger.getLogger(JavaUsers.class.getName());
+	private static final Logger Log = Logger.getLogger(JavaUsers.class.getName());
 
 	private static Users instance;
 
-	private CosmosClient client;
-	private CosmosDatabase db;
-	private CosmosContainer container;
+    private final CosmosContainer container;
 
-	private Shorts shorts;
+	private final Shorts shorts;
 	
 	synchronized public static Users getInstance() {
 		if( instance == null )
@@ -43,18 +41,20 @@ public class JavaUsers implements Users {
 	
 	private JavaUsers() {
 
-		client = new CosmosClientBuilder()
-				.endpoint(System.getProperty("COSMOSDB_URL"))
-				.key(System.getProperty("COSMOSDB_KEY"))
-				//.directMode()
-				.gatewayMode()
-				// replace by .directMode() for better performance
-				.consistencyLevel(ConsistencyLevel.SESSION)
-				.connectionSharingAcrossClientsEnabled(true)
-				.contentResponseOnWriteEnabled(true)
-				.buildClient();
+        //.directMode()
+        // replace by .directMode() for better performance
+        CosmosClient client = new CosmosClientBuilder()
+                .endpoint(System.getProperty("COSMOSDB_URL"))
+                .key(System.getProperty("COSMOSDB_KEY"))
+                //.directMode()
+                .gatewayMode()
+                // replace by .directMode() for better performance
+                .consistencyLevel(ConsistencyLevel.SESSION)
+                .connectionSharingAcrossClientsEnabled(true)
+                .contentResponseOnWriteEnabled(true)
+                .buildClient();
 
-		db = client.getDatabase(System.getProperty("COSMOSDB_DATABASE"));
+        CosmosDatabase db = client.getDatabase(System.getProperty("COSMOSDB_DATABASE"));
 		container = db.getContainer(Users.NAME);
 
 		shorts = JavaShorts.getInstance();

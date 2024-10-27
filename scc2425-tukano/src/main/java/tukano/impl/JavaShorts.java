@@ -3,11 +3,7 @@ package tukano.impl;
 import static java.lang.String.format;
 import static tukano.api.Result.ErrorCode.*;
 import static tukano.api.Result.error;
-import static tukano.api.Result.errorOrResult;
-import static tukano.api.Result.errorOrValue;
-import static tukano.api.Result.errorOrVoid;
 import static tukano.api.Result.ok;
-import static utils.DB.getOne;
 
 import com.azure.cosmos.models.CosmosItemRequestOptions;
 import com.azure.cosmos.models.CosmosQueryRequestOptions;
@@ -15,7 +11,6 @@ import com.azure.cosmos.models.PartitionKey;
 import com.azure.cosmos.util.CosmosPagedIterable;
 import tukano.api.Result;
 import tukano.api.User;
-import tukano.api.Users;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,17 +24,14 @@ import tukano.api.Short;
 import tukano.api.Shorts;
 import tukano.impl.data.Following;
 import tukano.impl.data.Likes;
-import utils.DB;
 
 public class JavaShorts implements Shorts {
 
-	private static Logger Log = Logger.getLogger(JavaShorts.class.getName());
+	private static final Logger Log = Logger.getLogger(JavaShorts.class.getName());
 	
 	private static Shorts instance;
 
-	private CosmosClient client;
-	private CosmosDatabase db;
-	private CosmosContainer container;
+    private final CosmosContainer container;
 
 	synchronized public static Shorts getInstance() {
 		if( instance == null )
@@ -48,18 +40,20 @@ public class JavaShorts implements Shorts {
 	}
 	
 	private JavaShorts() {
-		client = new CosmosClientBuilder()
-				.endpoint(System.getProperty("COSMOSDB_URL"))
-				.key(System.getProperty("COSMOSDB_KEY"))
-				//.directMode()
-				.gatewayMode()
-				// replace by .directMode() for better performance
-				.consistencyLevel(ConsistencyLevel.SESSION)
-				.connectionSharingAcrossClientsEnabled(true)
-				.contentResponseOnWriteEnabled(true)
-				.buildClient();
+        //.directMode()
+        // replace by .directMode() for better performance
+        CosmosClient client = new CosmosClientBuilder()
+                .endpoint(System.getProperty("COSMOSDB_URL"))
+                .key(System.getProperty("COSMOSDB_KEY"))
+                //.directMode()
+                .gatewayMode()
+                // replace by .directMode() for better performance
+                .consistencyLevel(ConsistencyLevel.SESSION)
+                .connectionSharingAcrossClientsEnabled(true)
+                .contentResponseOnWriteEnabled(true)
+                .buildClient();
 
-		db = client.getDatabase(System.getProperty("COSMOSDB_DATABASE"));
+        CosmosDatabase db = client.getDatabase(System.getProperty("COSMOSDB_DATABASE"));
 		container = db.getContainer(Shorts.NAME);
 	}
 	
@@ -242,27 +236,64 @@ public class JavaShorts implements Shorts {
 	public Result<List<String>> likes(String shortId, String password) {
 		Log.info(() -> format("likes : shortId = %s, pwd = %s\n", shortId, password));
 
-		return errorOrResult( getShort(shortId), shrt -> {
-			
-			var query = format("SELECT l.userId FROM Likes l WHERE l.shortId = '%s'", shortId);					
-			
-			return errorOrValue( okUser( shrt.getOwnerId(), password ), DB.sql(query, String.class));
-		});
+		Result<Short> shrt = getShort(shortId);
+		if (!shrt.isOK()) {
+			return Result.error(NOT_FOUND);
+		}
+
+		Result<User> owner = okUser(shrt.value().getOwnerId(), password);
+		if (owner.error().equals(FORBIDDEN)) {
+			return Result.error(FORBIDDEN);
+		} else if (!owner.isOK()) {
+			return Result.error(BAD_REQUEST);
+		}
+
+		String query = format("SELECT l.userId FROM Likes l WHERE l.shortId = '%s'", shortId);
+		List<String> likedUserIds = new ArrayList<>();
+
+		try {
+			CosmosPagedIterable<String> results = container.queryItems(query, new CosmosQueryRequestOptions(), String.class);
+			results.forEach(likedUserIds::add);
+
+			return Result.ok(likedUserIds);
+		} catch (CosmosException e) {
+			Log.warning("Error consulting the likes: " + e.getMessage());
+			return Result.error(INTERNAL_ERROR);
+		}
 	}
 
+	//Com os seus shorts ou apenas do que segue
 	@Override
 	public Result<List<String>> getFeed(String userId, String password) {
 		Log.info(() -> format("getFeed : userId = %s, pwd = %s\n", userId, password));
 
-		final var QUERY_FMT = """
-				SELECT s.shortId, s.timestamp FROM Short s WHERE	s.ownerId = '%s'				
-				UNION			
-				SELECT s.shortId, s.timestamp FROM Short s, Following f 
-					WHERE 
-						f.followee = s.ownerId AND f.follower = '%s' 
-				ORDER BY s.timestamp DESC""";
+		Result<User> user = okUser(userId, password);
+		if (user.error().equals(NOT_FOUND)) {
+			return Result.error(NOT_FOUND);
+		}
+		if (user.error().equals(FORBIDDEN)) {
+			return Result.error(FORBIDDEN);
+		}
 
-		return errorOrValue( okUser( userId, password), DB.sql( format(QUERY_FMT, userId, userId), String.class));		
+		List<String> followingUserIds = followers(userId, password).value();
+
+		List<String> feedShortIds = new ArrayList<>();
+		if (!followingUserIds.isEmpty()) {
+			String feedQuery = format(
+					"SELECT s.shortId FROM Short s WHERE ARRAY_CONTAINS(%s, s.ownerId) ORDER BY s.creationDate DESC",
+					followingUserIds
+			);
+
+			try {
+				CosmosPagedIterable<String> feedResults = container.queryItems(feedQuery, new CosmosQueryRequestOptions(), String.class);
+				feedResults.forEach(feedShortIds::add);
+			} catch (CosmosException e) {
+				Log.warning("Error consulting the feed shorts: " + e.getMessage());
+				return Result.error(INTERNAL_ERROR);
+			}
+		}
+
+		return Result.ok(feedShortIds);
 	}
 		
 	protected Result<User> okUser( String userId, String pwd) {
@@ -281,24 +312,31 @@ public class JavaShorts implements Shorts {
 	public Result<Void> deleteAllShorts(String userId, String password, String token) {
 		Log.info(() -> format("deleteAllShorts : userId = %s, password = %s, token = %s\n", userId, password, token));
 
-		if( ! Token.isValid( token, userId ) )
+		if (!Token.isValid(token, userId)) {
 			return error(FORBIDDEN);
-		
-		return DB.transaction( (hibernate) -> {
-						
-			//delete shorts
-			var query1 = format("DELETE Short s WHERE s.ownerId = '%s'", userId);		
-			hibernate.createQuery(query1, Short.class).executeUpdate();
-			
-			//delete follows
-			var query2 = format("DELETE Following f WHERE f.follower = '%s' OR f.followee = '%s'", userId, userId);		
-			hibernate.createQuery(query2, Following.class).executeUpdate();
-			
-			//delete likes
-			var query3 = format("DELETE Likes l WHERE l.ownerId = '%s' OR l.userId = '%s'", userId, userId);		
-			hibernate.createQuery(query3, Likes.class).executeUpdate();
-			
-		});
+		}
+
+		Result<User> user = okUser(userId, password);
+		if (!user.isOK()) {
+			return Result.error(FORBIDDEN);
+		}
+
+		//delete shorts
+		String queryDeleteShorts = format("SELECT * FROM Short s WHERE s.ownerId = '%s'", userId);
+		CosmosPagedIterable<Short> shorts = container.queryItems(queryDeleteShorts, new CosmosQueryRequestOptions(), Short.class);
+		shorts.forEach(shrt -> tryCatch( () -> container.deleteItem(shrt, new CosmosItemRequestOptions())));
+
+		//delete follows
+		String queryDeleteFollows = format("SELECT * FROM Following f WHERE f.follower = '%s' OR f.followee = '%s'", userId, userId);
+		CosmosPagedIterable<Following> follows = container.queryItems(queryDeleteFollows, new CosmosQueryRequestOptions(), Following.class);
+		follows.forEach(follow -> tryCatch( () -> container.deleteItem(follow, new CosmosItemRequestOptions())));
+
+		//delete likes
+		String queryDeleteLikes = format("SELECT * FROM Likes l WHERE l.ownerId = '%s' OR l.userId = '%s'", userId, userId);
+		CosmosPagedIterable<Likes> likes = container.queryItems(queryDeleteLikes, new CosmosQueryRequestOptions(), Likes.class);
+		likes.forEach(like -> tryCatch( () -> container.deleteItem(like, new CosmosItemRequestOptions())));
+
+		return Result.ok();
 	}
 
 	private <T> Result<T> tryCatch( Supplier<T> supplierFunc) {

@@ -24,10 +24,10 @@ import utils.Hex;
 public class JavaBlobs implements Blobs {
 	
 	private static Blobs instance;
-	private static Logger Log = Logger.getLogger(JavaBlobs.class.getName());
+	private static final Logger Log = Logger.getLogger(JavaBlobs.class.getName());
 
 	public String baseURI;
-	private BlobContainerClient containerClient;
+	private final BlobContainerClient containerClient;
 
 	synchronized public static Blobs getInstance() {
 		if( instance == null )
