@@ -12,26 +12,34 @@ import java.util.ArrayList;
 import java.util.stream.Collectors;
 
 import com.azure.cosmos.*;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.azure.cosmos.models.CosmosItemRequestOptions;
 import com.azure.cosmos.models.PartitionKey;
 import com.azure.cosmos.models.CosmosQueryRequestOptions;
 import com.azure.cosmos.util.CosmosPagedIterable;
+import cache.RedisCache;
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.exceptions.JedisException;
+
 import tukano.api.Result;
 import tukano.api.Shorts;
 import tukano.api.User;
 import tukano.api.Users;
 import tukano.api.rest.RestShorts;
+import utils.JSON;
 
 public class JavaUsers implements Users {
 	
 	private static final Logger Log = Logger.getLogger(JavaUsers.class.getName());
+
+	private static final String USER_CACHE_PREFIX = "user:";
 
 	private static Users instance;
 
     private final CosmosContainer container;
 
 	private final Shorts shorts;
-	
+
 	synchronized public static Users getInstance() {
 		if( instance == null )
 			instance = new JavaUsers();
@@ -66,8 +74,11 @@ public class JavaUsers implements Users {
 		if( badUserInfo( user ) )
 				return error(BAD_REQUEST);
 
-
-		return tryCatch( () -> container.createItem(user).getItem().getUserId());
+		return tryCatch(() -> {
+			String userId = container.createItem(user).getItem().getUserId();
+			cacheUser(user);
+			return userId;
+		});
 	}
 
 	@Override
@@ -77,13 +88,21 @@ public class JavaUsers implements Users {
 		if (userId == null)
 			return error(BAD_REQUEST);
 
-		Result<User> user = tryCatch( () -> container.readItem(userId, new PartitionKey(userId), User.class).getItem());
-
-		if (user.isOK() && !user.value().getPwd().equals(pwd)){
-			return Result.error(FORBIDDEN);
+		User user = getCachedUser(userId);
+		if (user != null && user.getPwd().equals(pwd)) {
+			return ok(user);
 		}
 
-		return user;
+		Result<User> userRes = tryCatch( () -> container.readItem(userId, new PartitionKey(userId), User.class).getItem());
+
+		if (userRes.isOK()) {
+			if (!userRes.value().getPwd().equals(pwd)) {
+				return Result.error(FORBIDDEN);
+			}
+			cacheUser(userRes.value());
+		}
+
+		return userRes;
 	}
 
 	@Override
@@ -104,8 +123,12 @@ public class JavaUsers implements Users {
 		if (other.getDisplayName() == null)
 			other.setDisplayName(oldUserResult.value().getDisplayName());
 
-		return tryCatch( () -> container.upsertItem(other).getItem());
-	}
+		Result<User> updatedUserResult = tryCatch(() -> container.upsertItem(other).getItem());
+		if (updatedUserResult.isOK()) {
+			cacheUser(updatedUserResult.value());
+		}
+
+		return updatedUserResult;	}
 
 	@Override
 	public Result<User> deleteUser(String userId, String pwd) {
@@ -122,11 +145,8 @@ public class JavaUsers implements Users {
 
 		if(result.isOK()){
 			shorts.deleteAllShorts(userId, pwd, RestShorts.TOKEN);
-			/*Result<Void> resultDeleteAllShorts = null;
-			while (resultDeleteAllShorts == null || !resultDeleteAllShorts.isOK()) {
-				Sleep.seconds(1);
-				resultDeleteAllShorts = shorts.deleteAllShorts(userId, pwd, RestShorts.TOKEN);
-			}*/
+			removeCachedUser(userId);
+
 			return oldUserResult;
 		}
 		else
@@ -135,39 +155,48 @@ public class JavaUsers implements Users {
 
 	@Override
 	public Result<List<User>> searchUsers(String pattern) {
-		Log.info( () -> format("searchUsers : patterns = %s\n", pattern));
+		Log.info(() -> format("searchUsers : patterns = %s\n", pattern));
 
 		if (pattern == null || pattern.trim().isEmpty()) {
 			return error(BAD_REQUEST);
 		}
 
-		var query = format("SELECT * FROM User u WHERE CONTAINS(UPPER(u.userId), '%s')", pattern.toUpperCase());
+		String cacheKey = "user_search_" + pattern.toUpperCase();
+		List<User> users;
 
-		List<User> users = new ArrayList<>();
+		// Try to get the cached results from Redis
+		try (Jedis jedis = RedisCache.getCachePool().getResource()) {
+			String cachedUsersJson = jedis.get(cacheKey);
+
+			if (cachedUsersJson != null) {
+				users = JSON.decode(cachedUsersJson, new TypeReference<List<User>>() {});
+				if (users != null) {
+					return ok(users);
+				}
+			}
+		} catch (JedisException e) {
+			Log.warning("Redis cache access failed, proceeding with database query.");
+		}
 
 		try {
-			CosmosPagedIterable<User> results = container.queryItems(
-					query, new CosmosQueryRequestOptions(), User.class
-			);
+			String query = format("SELECT * FROM User u WHERE CONTAINS(UPPER(u.userId), '%s')", pattern.toUpperCase());
+			CosmosPagedIterable<User> results = container.queryItems(query, new CosmosQueryRequestOptions(), User.class);
 
-			// Process the results, copying the users without their password
 			users = results.stream()
 					.map(User::copyWithoutPassword)
 					.collect(Collectors.toList());
 
+			// Cache the results in Redis for future requests
+			try (Jedis jedis = RedisCache.getCachePool().getResource()) {
+				jedis.setex(cacheKey, 3600, JSON.encode(users));  // Cache with TTL of 1 hour (3600 seconds)
+			} catch (JedisException e) {
+				Log.warning("Failed to cache search results in Redis.");
+			}
+
+			return ok(users);
 		} catch (CosmosException e) {
 			return error(INTERNAL_ERROR);
 		}
-
-		return ok(users);
-	}
-
-	
-	private Result<User> validatedUserOrError( Result<User> res, String pwd ) {
-		if( res.isOK())
-			return res.value().getPwd().equals( pwd ) ? res : error(FORBIDDEN);
-		else
-			return res;
 	}
 	
 	private boolean badUserInfo( User user) {
@@ -197,5 +226,24 @@ public class JavaUsers implements Users {
 			case 409 -> CONFLICT;
 			default -> INTERNAL_ERROR;
 		};
+	}
+
+	private void cacheUser(User user) {
+		try (Jedis jedis = RedisCache.getCachePool().getResource()) {
+			jedis.set(USER_CACHE_PREFIX + user.getUserId(), JSON.encode(user));
+		}
+	}
+
+	private User getCachedUser(String userId) {
+		try (Jedis jedis = RedisCache.getCachePool().getResource()) {
+			String userJson = jedis.get(USER_CACHE_PREFIX + userId);
+			return userJson != null ? JSON.decode(userJson, User.class) : null;
+		}
+	}
+
+	private void removeCachedUser(String userId) {
+		try (Jedis jedis = RedisCache.getCachePool().getResource()) {
+			jedis.del(USER_CACHE_PREFIX + userId);
+		}
 	}
 }
