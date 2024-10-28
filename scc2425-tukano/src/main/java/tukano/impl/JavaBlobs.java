@@ -21,7 +21,6 @@ import redis.clients.jedis.exceptions.JedisException;
 import storageConnections.RedisCache;
 import tukano.api.Blobs;
 import tukano.api.Result;
-import tukano.api.Short;
 import tukano.impl.rest.TukanoRestServer;
 import utils.Hash;
 import utils.Hex;
