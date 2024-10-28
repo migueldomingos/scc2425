@@ -6,6 +6,7 @@ import static tukano.api.Result.ErrorCode.FORBIDDEN;
 import static tukano.api.Result.ErrorCode.CONFLICT;
 import static tukano.api.Result.ErrorCode.INTERNAL_ERROR;
 import static tukano.api.Result.ErrorCode.NOT_FOUND;
+import static tukano.api.Result.ok;
 
 import java.util.logging.Logger;
 
@@ -15,16 +16,22 @@ import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobContainerClientBuilder;
 import com.azure.storage.blob.models.BlobItem;
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.exceptions.JedisException;
+import storageConnections.RedisCache;
 import tukano.api.Blobs;
 import tukano.api.Result;
+import tukano.api.Short;
 import tukano.impl.rest.TukanoRestServer;
 import utils.Hash;
 import utils.Hex;
+import utils.JSON;
 
 public class JavaBlobs implements Blobs {
 	
 	private static Blobs instance;
 	private static final Logger Log = Logger.getLogger(JavaBlobs.class.getName());
+	private static final String BYTES_CACHE_PREFIX = "bytes:";
 
 	public String baseURI;
 	private final BlobContainerClient containerClient;
@@ -72,6 +79,7 @@ public class JavaBlobs implements Blobs {
 				}
 			} else {
 				blobClient.upload(data);
+				cacheBytes(blobId, data);
 				Log.info(() -> format("New blob uploaded: blobId = %s", blobId));
 				return Result.ok();
 			}
@@ -90,6 +98,12 @@ public class JavaBlobs implements Blobs {
 			return error(FORBIDDEN);
 
 		try {
+
+			BinaryData cachedBytes = getCachedBytes(blobId);
+			if (cachedBytes != null) {
+				return ok(cachedBytes.toBytes());
+			}
+
 			byte[] arr;
 
 			BlobClient blobClient = containerClient.getBlobClient(blobId);
@@ -123,6 +137,7 @@ public class JavaBlobs implements Blobs {
 
 			if (blob.exists()) {
 				blob.delete();
+				removeCachedBytes(blobId);
 				Log.info(() -> format("Blob deleted: %s", blobId));
 				return Result.ok();
 			} else {
@@ -151,6 +166,7 @@ public class JavaBlobs implements Blobs {
 			for (BlobItem blobItem : blobs) {
 				BlobClient blobClient = containerClient.getBlobClient(blobItem.getName());
 				blobClient.delete();
+				removeCachedBytes(blobItem.getName());
 				System.out.println("Deleted blob: " + blobItem.getName());
 			}
 
@@ -168,5 +184,31 @@ public class JavaBlobs implements Blobs {
 
 	private String toPath(String blobId) {
 		return blobId.replace("+", "/");
+	}
+
+	private void cacheBytes(String blobId, BinaryData data){
+		try (Jedis jedis = RedisCache.getCachePool().getResource()) {
+			jedis.set(BYTES_CACHE_PREFIX + blobId, JSON.encode(data));
+		} catch (JedisException e) {
+			Log.warning("Failed to cache the bytes in Redis: " + e.getMessage());
+		}
+	}
+
+	private BinaryData getCachedBytes(String blobId) {
+		try (Jedis jedis = RedisCache.getCachePool().getResource()) {
+			String shortJson = jedis.get(BYTES_CACHE_PREFIX + blobId);
+			return shortJson != null ? JSON.decode(shortJson, BinaryData.class) : null;
+		} catch (JedisException e) {
+			Log.warning("Redis access failed, unable to retrieve cached short.");
+			return null;
+		}
+	}
+
+	private void removeCachedBytes(String blobId) {
+		try (Jedis jedis = RedisCache.getCachePool().getResource()) {
+			jedis.del(BYTES_CACHE_PREFIX + blobId);
+		} catch (JedisException e) {
+			Log.warning("Failed to remove cached short from Redis: " + e.getMessage());
+		}
 	}
 }
