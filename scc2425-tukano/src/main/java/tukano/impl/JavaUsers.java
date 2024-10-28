@@ -8,7 +8,6 @@ import static tukano.api.Result.ErrorCode.*;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
-import java.util.ArrayList;
 import java.util.stream.Collectors;
 
 import com.azure.cosmos.*;
@@ -17,7 +16,8 @@ import com.azure.cosmos.models.CosmosItemRequestOptions;
 import com.azure.cosmos.models.PartitionKey;
 import com.azure.cosmos.models.CosmosQueryRequestOptions;
 import com.azure.cosmos.util.CosmosPagedIterable;
-import cache.RedisCache;
+import storageConnections.AzureCosmosDB;
+import storageConnections.RedisCache;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.exceptions.JedisException;
 
@@ -48,22 +48,7 @@ public class JavaUsers implements Users {
 	
 	private JavaUsers() {
 
-        //.directMode()
-        // replace by .directMode() for better performance
-        CosmosClient client = new CosmosClientBuilder()
-                .endpoint(System.getProperty("COSMOSDB_URL"))
-                .key(System.getProperty("COSMOSDB_KEY"))
-                //.directMode()
-                .gatewayMode()
-                // replace by .directMode() for better performance
-                .consistencyLevel(ConsistencyLevel.SESSION)
-                .connectionSharingAcrossClientsEnabled(true)
-                .contentResponseOnWriteEnabled(true)
-                .buildClient();
-
-        CosmosDatabase db = client.getDatabase(System.getProperty("COSMOSDB_DATABASE"));
-		container = db.getContainer(Users.NAME);
-
+		container = AzureCosmosDB.getContainer(Users.NAME);
 		shorts = JavaShorts.getInstance();
 	}
 	
@@ -128,7 +113,8 @@ public class JavaUsers implements Users {
 			cacheUser(updatedUserResult.value());
 		}
 
-		return updatedUserResult;	}
+		return updatedUserResult;
+	}
 
 	@Override
 	public Result<User> deleteUser(String userId, String pwd) {

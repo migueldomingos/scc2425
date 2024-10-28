@@ -136,7 +136,6 @@ public class JavaBlobs implements Blobs {
 		}
 	}
 
-
 	@Override
 	public Result<Void> deleteAllBlobs(String userId, String token) {
 		Log.info(() -> format("deleteAllBlobs : userId = %s, token=%s\n", userId, token));
