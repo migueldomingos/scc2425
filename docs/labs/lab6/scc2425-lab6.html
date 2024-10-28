@@ -7610,8 +7610,8 @@ sudo<span class="w"> </span>npm<span class="w"> </span>install<span class="w"> <
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
 <h1 id="Deploy-TuKano">Deploy TuKano<a class="anchor-link" href="#Deploy-TuKano">¶</a></h1><h2 id="I-needed-to-do-the-following-to-get-the-TuKano-deployment-to-work:">I needed to do the following to get the TuKano deployment to work:<a class="anchor-link" href="#I-needed-to-do-the-following-to-get-the-TuKano-deployment-to-work:">¶</a></h2><ul>
-<li>Change the TukanoRestApplication file to extend a jakarta Application class. This required changes within the constructor. I used Lab1 as a basis for this.</li>
-<li>Create a WEB-INF folder within the src/main directory of the project. I used Lab1 as a basis for this.</li>
+<li>Change the TukanoRestServer class to extend a jakarta Application class. This required changes within the constructor. I used Lab1 as a basis for this.</li>
+<li>Create a webapp/WEB-INF folder within the src/main directory of the project. I used Lab1 as a basis for this.</li>
 <li>Modify the web.xml file in the WEB-INF folder to point to the correct web applicaiton class.</li>
 <li>Install necessary dependencies (make sure you use up-to-date versions).</li>
 <li>If you are testing using hibernate because you have not yet implemented cosmos, make sure that you move the hibernate config file to WEB-INF/classes and modify Hibernate.java.</li>
