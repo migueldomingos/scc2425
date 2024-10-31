@@ -14,7 +14,7 @@
 		<plugins>
 			<plugin>
 				<artifactId>maven-compiler-plugin</artifactId>
-				<version>3.8.1</version>
+				<version>3.13.0 </version>
 				<configuration>
 					<release>17</release>
 				</configuration>
@@ -35,7 +35,7 @@
 					<url>http://maven:s3cret@127.0.0.1:8080/manager/text</url>
 					<server>tomcat-docker</server>
 					<update>true</update>
-					<path>/lab1</path>
+					<path>/project1</path>
 				</configuration>
 			</plugin>
 			<plugin>
