@@ -23,5 +23,7 @@ public interface ShortsRepository {
 
     Result<List<String>> likes(String shortId);
 
-    Result<List<String>> getFeed(String userId, String password);
+    Result<List<String>> getFeed(String userId);
+
+    Result<Void> deleteAllShorts(String userId);
 }
