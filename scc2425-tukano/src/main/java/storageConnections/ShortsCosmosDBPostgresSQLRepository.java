@@ -20,15 +20,15 @@ import tukano.impl.JavaBlobs;
 import tukano.impl.Token;
 import utils.JSON;
 
-public class CosmosDBPostgresSQLRepository implements ShortsRepository{
+public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository{
 
-    private static final Logger Log = Logger.getLogger(CosmosDBPostgresSQLRepository.class.getName());
+    private static final Logger Log = Logger.getLogger(ShortsCosmosDBPostgresSQLRepository.class.getName());
     private static final String SHORT_CACHE_PREFIX = "short:";
     private static final String FOLLOWERS_CACHE_PREFIX = "followers_user:";
     private final Connection connection;
 
 
-    public CosmosDBPostgresSQLRepository() {
+    public ShortsCosmosDBPostgresSQLRepository() {
         try {
             connection = AzureCosmosDB_PostgresSQL.getConnection();
         } catch (SQLException e) {

@@ -5,9 +5,8 @@ import static tukano.api.Result.ErrorCode.*;
 import static tukano.api.Result.error;
 import static tukano.api.Result.ok;
 
-import storageConnections.AzureCosmosDB_NoSQL;
-import storageConnections.CosmosDBNoSQLRepository;
-import storageConnections.CosmosDBPostgresSQLRepository;
+import storageConnections.ShortsCosmosDBNoSQLRepository;
+import storageConnections.ShortsCosmosDBPostgresSQLRepository;
 import storageConnections.ShortsRepository;
 import tukano.api.Result;
 import tukano.api.User;
@@ -38,9 +37,9 @@ public class JavaShorts implements Shorts {
 		String sqlType = System.getProperty("COSMOSDB_SQL_TYPE");
 
 		if (sqlType.equals("P")) {
-			this.repository = new CosmosDBPostgresSQLRepository();
+			this.repository = new ShortsCosmosDBPostgresSQLRepository();
 		} else {
-			this.repository = new CosmosDBNoSQLRepository();
+			this.repository = new ShortsCosmosDBNoSQLRepository();
 		}
 	}
 	

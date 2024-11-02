@@ -23,13 +23,13 @@ import static java.lang.String.format;
 import static tukano.api.Result.ErrorCode.*;
 import static tukano.api.Result.ok;
 
-public class CosmosDBNoSQLRepository implements ShortsRepository {
+public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
 
-    private static final Logger Log = Logger.getLogger(CosmosDBNoSQLRepository.class.getName());
+    private static final Logger Log = Logger.getLogger(ShortsCosmosDBNoSQLRepository.class.getName());
     private final CosmosContainer container;
     private static final String SHORT_CACHE_PREFIX = "short:";
 
-    public CosmosDBNoSQLRepository() {
+    public ShortsCosmosDBNoSQLRepository() {
         container = AzureCosmosDB_NoSQL.getContainer(Shorts.NAME);
     }
 
