@@ -8,6 +8,7 @@ import static tukano.api.Result.ErrorCode.INTERNAL_ERROR;
 import static tukano.api.Result.ErrorCode.NOT_FOUND;
 import static tukano.api.Result.ok;
 
+import java.util.List;
 import java.util.logging.Logger;
 
 import com.azure.core.http.rest.PagedIterable;
@@ -21,6 +22,7 @@ import redis.clients.jedis.exceptions.JedisException;
 import storageConnections.RedisCache;
 import tukano.api.Blobs;
 import tukano.api.Result;
+import tukano.api.Short;
 import tukano.impl.rest.TukanoRestServer;
 import utils.Hash;
 import utils.Hex;
@@ -154,24 +156,27 @@ public class JavaBlobs implements Blobs {
 	public Result<Void> deleteAllBlobs(String userId, String token) {
 		Log.info(() -> format("deleteAllBlobs : userId = %s, token=%s\n", userId, token));
 
+		List<String> shorts = JavaShorts.getInstance().getShorts(userId).value();
+
 		if (!Token.isValid(token, userId)) {
 			return error(FORBIDDEN);
 		}
 
-		try {
-			// Assuming each blob has a userId as part of its metadata or blobId prefix
-			PagedIterable<BlobItem> blobs = containerClient.listBlobs();
+		for (String s: shorts){
 
-			for (BlobItem blobItem : blobs) {
-				BlobClient blobClient = containerClient.getBlobClient(blobItem.getName());
-				blobClient.delete();
-				removeCachedBytes(blobItem.getName());
-				System.out.println("Deleted blob: " + blobItem.getName());
+			try {
+				BlobClient blob = containerClient.getBlobClient(s);
+
+				if (blob.exists()) {
+					blob.delete();
+					removeCachedBytes(s);
+					Log.info(() -> format("Blob deleted: %s", s));
+				}
+
+			} catch (Exception e) {
+				e.printStackTrace();
+				return error(INTERNAL_ERROR);
 			}
-
-		} catch (Exception e) {
-			e.printStackTrace();
-			return error(INTERNAL_ERROR);
 		}
 
 		return Result.ok();

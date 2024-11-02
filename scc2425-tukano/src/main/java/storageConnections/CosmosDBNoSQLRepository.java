@@ -186,8 +186,14 @@ public class CosmosDBNoSQLRepository implements ShortsRepository {
                 return Result.error(res.error());
         } else {
             Result<Object> res = tryCatch( () -> container.deleteItem(l, new CosmosItemRequestOptions()).getItem());
-            if (res.isOK())
+            if (res.isOK()){
+                try (Jedis jedis = RedisCache.getCachePool().getResource()) {
+                    jedis.del("likes_short:" + shrt.getShortId());
+                } catch (JedisException e) {
+                    Log.warning("Failed to store likes in Redis cache.");
+                }
                 return Result.ok();
+            }
             else
                 return Result.error(res.error());
         }
