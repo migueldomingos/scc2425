@@ -134,11 +134,9 @@ public class JavaShorts implements Shorts {
 			return Result.error(NOT_FOUND);
 		}
 
-		// Definir a chave do cache Redis para armazenar os shorts do usuário
 		String cacheKey = "shorts_user:" + userId;
 		List<String> shortIds;
 
-		// Tentativa de recuperar os IDs dos shorts a partir do cache Redis
 		try (Jedis jedis = RedisCache.getCachePool().getResource()) {
 			String cachedShortIdsJson = jedis.get(cacheKey);
 			if (cachedShortIdsJson != null) {
@@ -151,7 +149,6 @@ public class JavaShorts implements Shorts {
 			Log.warning("Failed to access Redis Cache.");
 		}
 
-		// Consulta ao CosmosDB caso os dados não estejam em cache
 		String query = format("SELECT s.shortId FROM Short s WHERE s.ownerId = '%s'", userId);
 		shortIds = new ArrayList<>();
 
@@ -159,7 +156,6 @@ public class JavaShorts implements Shorts {
 			CosmosPagedIterable<String> results = container.queryItems(query, new CosmosQueryRequestOptions(), String.class);
 			results.forEach(shortIds::add);
 
-			// Armazenar os resultados no cache Redis com um TTL de 1 hora
 			try (Jedis jedis = RedisCache.getCachePool().getResource()) {
 				jedis.setex(cacheKey, 3600, JSON.encode(shortIds));  // Cache com TTL de 1 hora (3600 segundos)
 			} catch (JedisException e) {
@@ -204,7 +200,12 @@ public class JavaShorts implements Shorts {
 				return Result.error(res.error());
 		} else {
 			//we want to unfollow the person
-
+			String cacheKey = "feed_user:" + userId1;
+			try (Jedis jedis = RedisCache.getCachePool().getResource()) {
+				jedis.del(cacheKey);
+			} catch (JedisException e) {
+				Log.warning("Failed to delete feed in Redis cache.");
+			}
 			Result<Object> res = tryCatch( () -> container.deleteItem(f, new CosmosItemRequestOptions()).getItem());
 			if (res.isOK())
 				return Result.ok();
