@@ -10,6 +10,8 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.exceptions.JedisException;
 import tukano.api.*;
 import tukano.api.Short;
+import tukano.api.rest.RestShorts;
+import tukano.impl.JavaBlobs;
 import tukano.impl.data.Following;
 import tukano.impl.data.Likes;
 import utils.JSON;
@@ -71,6 +73,7 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
         Result<Object> deleteResult = tryCatch(() -> container.deleteItem(shrt, new CosmosItemRequestOptions()).getItem());
         if (deleteResult.isOK()) {
             removeCachedShort(shrt.getShortId());
+            JavaBlobs.getInstance().delete(shrt.getShortId(), RestShorts.TOKEN);
         }
 
         return deleteResult.isOK() ? Result.ok() : Result.error(deleteResult.error());
@@ -276,7 +279,10 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
         //delete shorts
         String queryDeleteShorts = format("SELECT * FROM Short s WHERE s.ownerId = '%s'", userId);
         CosmosPagedIterable<Short> shorts = container.queryItems(queryDeleteShorts, new CosmosQueryRequestOptions(), Short.class);
-        shorts.forEach(shrt -> tryCatch( () -> container.deleteItem(shrt, new CosmosItemRequestOptions())));
+        shorts.forEach(shrt -> {
+            tryCatch( () -> container.deleteItem(shrt, new CosmosItemRequestOptions()));
+            JavaBlobs.getInstance().delete(shrt.getShortId(), RestShorts.TOKEN);
+        });
 
         //delete follows
         String queryDeleteFollows = format("SELECT * FROM Following f WHERE f.follower = '%s' OR f.followee = '%s'", userId, userId);
@@ -287,6 +293,8 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
         String queryDeleteLikes = format("SELECT * FROM Likes l WHERE l.ownerId = '%s' OR l.userId = '%s'", userId, userId);
         CosmosPagedIterable<Likes> likes = container.queryItems(queryDeleteLikes, new CosmosQueryRequestOptions(), Likes.class);
         likes.forEach(like -> tryCatch( () -> container.deleteItem(like, new CosmosItemRequestOptions())));
+
+
 
         return Result.ok();
     }

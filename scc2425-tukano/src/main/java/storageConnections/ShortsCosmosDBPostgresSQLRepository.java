@@ -1,6 +1,5 @@
 package storageConnections;
 
-import static java.lang.String.format;
 import static tukano.api.Result.ErrorCode.*;
 import static tukano.api.Result.ok;
 
@@ -12,12 +11,11 @@ import tukano.api.Result;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Supplier;
 import java.util.logging.Logger;
 
 import tukano.api.Short;
+import tukano.api.rest.RestShorts;
 import tukano.impl.JavaBlobs;
-import tukano.impl.Token;
 import utils.JSON;
 
 public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository{
@@ -39,19 +37,16 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository{
     @Override
     public Result<Short> createShort(Short shrt) {
         String insertSQL = "INSERT INTO shorts (short_id, user_id, blob_url) VALUES (?, ?, ?)";
-
-        return tryCatch(() -> {
-            try (PreparedStatement pstmt = connection.prepareStatement(insertSQL)) {
-                pstmt.setString(1, shrt.getShortId());
-                pstmt.setString(2, shrt.getOwnerId());
-                pstmt.setString(3, shrt.getBlobUrl());
-                pstmt.executeUpdate();
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
-            }
+        try (PreparedStatement pstmt = connection.prepareStatement(insertSQL)) {
+            pstmt.setString(1, shrt.getShortId());
+            pstmt.setString(2, shrt.getOwnerId());
+            pstmt.setString(3, shrt.getBlobUrl());
+            pstmt.executeUpdate();
             cacheShort(shrt);
-            return shrt;
-        });
+            return ok(shrt);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -62,28 +57,23 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository{
         }
 
         String querySQL = "SELECT * FROM shorts WHERE short_id = ?";
-
-        return tryCatch(() -> {
-            Short shrt;
-            try (PreparedStatement pstmt = connection.prepareStatement(querySQL)) {
-                pstmt.setString(1, shortId);
-                try (ResultSet rs = pstmt.executeQuery()) {
-                    if (rs.next()) {
-                        shrt = new Short(
-                                rs.getString("short_id"),
-                                rs.getString("user_id"),
-                                rs.getString("blob_url")
-                        );
-                        cacheShort(shrt);
-                    } else {
-                        return null;
-                    }
+        try (PreparedStatement pstmt = connection.prepareStatement(querySQL)) {
+            pstmt.setString(1, shortId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    Short shrt = new Short(
+                            rs.getString("short_id"),
+                            rs.getString("user_id"),
+                            rs.getString("blob_url")
+                    );
+                    cacheShort(shrt);
+                    return ok(shrt);
                 }
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
             }
-            return shrt;
-        });
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        return Result.error(NOT_FOUND);
 
     }
 
@@ -92,22 +82,20 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository{
         String deleteLikesSQL = "DELETE FROM likes WHERE short_id = ?";
         String deleteShortSQL = "DELETE FROM shorts WHERE short_id = ?";
 
-        return tryCatch(() -> {
-            try (PreparedStatement pstmtLikes = connection.prepareStatement(deleteLikesSQL);
-                 PreparedStatement pstmtShort = connection.prepareStatement(deleteShortSQL)) {
-                pstmtLikes.setString(1, shrt.getShortId());
-                pstmtLikes.executeUpdate();
+        try (PreparedStatement pstmtLikes = connection.prepareStatement(deleteLikesSQL);
+             PreparedStatement pstmtShort = connection.prepareStatement(deleteShortSQL)) {
+            pstmtLikes.setString(1, shrt.getShortId());
+            pstmtLikes.executeUpdate();
 
-                pstmtShort.setString(1, shrt.getShortId());
-                pstmtShort.executeUpdate();
+            pstmtShort.setString(1, shrt.getShortId());
+            pstmtShort.executeUpdate();
 
-                removeCachedShort(shrt.getShortId());
-                JavaBlobs.getInstance().delete(shrt.getShortId(), Token.get(shrt.getShortId()));
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
-            }
-            return null;
-        });
+            removeCachedShort(shrt.getShortId());
+            JavaBlobs.getInstance().delete(shrt.getShortId(), RestShorts.TOKEN);
+            return ok();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -116,45 +104,38 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository{
         List<String> shortIds = getCachedListFromCache(cacheKey);
 
         if (shortIds != null) {
-            return Result.ok(shortIds);
+            return ok(shortIds);
         }
 
         String querySQL = "SELECT short_id FROM shorts WHERE user_id = ?";
-        shortIds = new ArrayList<>();
-
-        List<String> finalShortIds = shortIds;
-        return tryCatch(() -> {
-            try (PreparedStatement pstmt = connection.prepareStatement(querySQL)) {
-                pstmt.setString(1, userId);
-                try (ResultSet rs = pstmt.executeQuery()) {
-                    while (rs.next()) {
-                        finalShortIds.add(rs.getString("short_id"));
-                    }
+        List<String> finalShortIds = new ArrayList<>();
+        try (PreparedStatement pstmt = connection.prepareStatement(querySQL)) {
+            pstmt.setString(1, userId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    finalShortIds.add(rs.getString("short_id"));
                 }
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
             }
             cacheListInCache(cacheKey, finalShortIds);
-            return finalShortIds;
-        });
+            return ok(finalShortIds);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
     public Result<Void> follow(String userId1, String userId2, boolean isFollowing) {
-        String insertSQL = "INSERT INTO following (follower, followee) VALUES (?, ?)";
-        String deleteSQL = "DELETE FROM following WHERE follower = ? AND followee = ?";
-
-        return tryCatch(() -> {
-            try (PreparedStatement pstmt = connection.prepareStatement(isFollowing ? insertSQL : deleteSQL)) {
-                pstmt.setString(1, userId1);
-                pstmt.setString(2, userId2);
-                pstmt.executeUpdate();
-                unfollowCacheForUser(userId1);
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
-            }
-            return null;
-        });
+        String sql = isFollowing ? "INSERT INTO following (follower, followee) VALUES (?, ?)"
+                : "DELETE FROM following WHERE follower = ? AND followee = ?";
+        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+            pstmt.setString(1, userId1);
+            pstmt.setString(2, userId2);
+            pstmt.executeUpdate();
+            unfollowCacheForUser(userId1);
+            return ok(null);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -162,58 +143,46 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository{
         String cacheKey = "followers_user:" + userId;
         List<String> followers = getCachedListFromCache(cacheKey);
         if (followers != null) {
-            return Result.ok(followers);
+            return ok(followers);
         }
 
         String querySQL = "SELECT follower FROM following WHERE followee = ?";
-        followers = new ArrayList<>();
-
-        List<String> finalFollowers = followers;
-        return tryCatch(() -> {
-            try (PreparedStatement pstmt = connection.prepareStatement(querySQL)) {
-                pstmt.setString(1, userId);
-                try (ResultSet rs = pstmt.executeQuery()) {
-                    while (rs.next()) {
-                        finalFollowers.add(rs.getString("follower"));
-                    }
+        List<String> finalFollowers = new ArrayList<>();
+        try (PreparedStatement pstmt = connection.prepareStatement(querySQL)) {
+            pstmt.setString(1, userId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    finalFollowers.add(rs.getString("follower"));
                 }
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
             }
             cacheListInCache(cacheKey, finalFollowers);
-            return finalFollowers;
-        });
+            return ok(finalFollowers);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
     public Result<Void> like(String userId, boolean isliked, Short shrt) {
-        String insertLikeSQL = "INSERT INTO likes (user_id, short_id, owner_id) VALUES (?, ?, ?)";
-        String deleteLikeSQL = "DELETE FROM likes WHERE user_id = ? AND short_id = ?";
-
-        return tryCatch(() -> {
-            try (PreparedStatement pstmt = connection.prepareStatement(isliked ? insertLikeSQL : deleteLikeSQL)) {
-                pstmt.setString(1, userId);
-                pstmt.setString(2, shrt.getShortId());
+        String sql = isliked ? "INSERT INTO likes (user_id, short_id, owner_id) VALUES (?, ?, ?)"
+                : "DELETE FROM likes WHERE user_id = ? AND short_id = ?";
+        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+            pstmt.setString(1, userId);
+            pstmt.setString(2, shrt.getShortId());
+            if (isliked) {
                 pstmt.setString(3, shrt.getOwnerId());
-                pstmt.executeUpdate();
-                if (isliked) {
-                    pstmt.executeUpdate();
-                    Log.info(() -> format("Curtida adicionada para shortId = %s pelo userId = %s\n", shrt.getShortId(), userId));
-                } else {
-                    pstmt.executeUpdate();
-                    Log.info(() -> format("Curtida removida para shortId = %s pelo userId = %s\n", shrt.getShortId(), userId));
-                }
-
-                try (Jedis jedis = RedisCache.getCachePool().getResource()) {
-                    jedis.del("likes_short:" + shrt.getShortId());
-                } catch (JedisException e) {
-                    Log.warning("Failed to store likes in Redis cache.");
-                }
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
             }
-            return null;
-        });
+            pstmt.executeUpdate();
+
+            try (Jedis jedis = RedisCache.getCachePool().getResource()) {
+                jedis.del("likes_short:" + shrt.getShortId());
+            } catch (JedisException e) {
+                Log.warning("Failed to update Redis cache.");
+            }
+            return ok(null);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -221,28 +190,23 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository{
         String cacheKey = "likes_short:" + shortId;
         List<String> likedUserIds = getCachedListFromCache(cacheKey);
         if (likedUserIds != null) {
-            return Result.ok(likedUserIds);
+            return ok(likedUserIds);
         }
 
         String querySQL = "SELECT user_id FROM likes WHERE short_id = ?";
-        likedUserIds = new ArrayList<>();
-
-        List<String> finalLikedUserIds = likedUserIds;
-        return tryCatch(() -> {
-            try (PreparedStatement pstmt = connection.prepareStatement(querySQL)) {
-                pstmt.setString(1, shortId);
-                try (ResultSet rs = pstmt.executeQuery()) {
-                    while (rs.next()) {
-                        finalLikedUserIds.add(rs.getString("user_id"));
-                    }
+        List<String> finalLikedUserIds = new ArrayList<>();
+        try (PreparedStatement pstmt = connection.prepareStatement(querySQL)) {
+            pstmt.setString(1, shortId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    finalLikedUserIds.add(rs.getString("user_id"));
                 }
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
             }
-            // Cache the list of user IDs for 1 hour
             cacheListInCache(cacheKey, finalLikedUserIds);
-            return finalLikedUserIds;
-        });
+            return ok(finalLikedUserIds);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -250,7 +214,7 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository{
         String cacheKey = "feed_user:" + userId;
         List<String> feed = getCachedListFromCache(cacheKey);
         if (feed != null) {
-            return Result.ok(feed);
+            return ok(feed);
         }
 
         String queryFeedSQL = """
@@ -258,24 +222,19 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository{
             WHERE user_id IN (SELECT followee FROM following WHERE follower = ?)
             ORDER BY created_at DESC
         """;
-
-        feed = new ArrayList<>();
-
-        List<String> finalFeed = feed;
-        return tryCatch(() -> {
-            try (PreparedStatement pstmt = connection.prepareStatement(queryFeedSQL)) {
-                pstmt.setString(1, userId);
-                try (ResultSet rs = pstmt.executeQuery()) {
-                    while (rs.next()) {
-                        finalFeed.add(rs.getString("short_id"));
-                    }
+        List<String> finalFeed = new ArrayList<>();
+        try (PreparedStatement pstmt = connection.prepareStatement(queryFeedSQL)) {
+            pstmt.setString(1, userId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    finalFeed.add(rs.getString("short_id"));
                 }
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
             }
             cacheListInCache(cacheKey, finalFeed);
-            return finalFeed;
-        });
+            return ok(finalFeed);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -285,36 +244,28 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository{
         String deleteFollowingAsFollowerSQL = "DELETE FROM following WHERE follower = ?";
         String deleteFollowingAsFolloweeSQL = "DELETE FROM following WHERE followee = ?";
 
-        return tryCatch(() -> {
-            try (PreparedStatement pstmtLikes = connection.prepareStatement(deleteLikesSQL);
-                 PreparedStatement pstmtShorts = connection.prepareStatement(deleteShortsSQL);
-                 PreparedStatement pstmtFollowingAsFollower = connection.prepareStatement(deleteFollowingAsFollowerSQL);
-                 PreparedStatement pstmtFollowingAsFollowee = connection.prepareStatement(deleteFollowingAsFolloweeSQL)) {
+        try (PreparedStatement pstmtLikes = connection.prepareStatement(deleteLikesSQL);
+             PreparedStatement pstmtShorts = connection.prepareStatement(deleteShortsSQL);
+             PreparedStatement pstmtFollowingAsFollower = connection.prepareStatement(deleteFollowingAsFollowerSQL);
+             PreparedStatement pstmtFollowingAsFollowee = connection.prepareStatement(deleteFollowingAsFolloweeSQL)) {
 
-                // Delete all likes associated with the user's shorts
-                pstmtLikes.setString(1, userId);
-                pstmtLikes.executeUpdate();
+            pstmtLikes.setString(1, userId);
+            pstmtLikes.executeUpdate();
 
-                // Delete all shorts associated with the user
-                pstmtShorts.setString(1, userId);
-                pstmtShorts.executeUpdate();
+            pstmtShorts.setString(1, userId);
+            pstmtShorts.executeUpdate();
 
-                // Delete all following relationships where the user is the follower
-                pstmtFollowingAsFollower.setString(1, userId);
-                pstmtFollowingAsFollower.executeUpdate();
+            pstmtFollowingAsFollower.setString(1, userId);
+            pstmtFollowingAsFollower.executeUpdate();
 
-                // Delete all following relationships where the user is the followee
-                pstmtFollowingAsFollowee.setString(1, userId);
-                pstmtFollowingAsFollowee.executeUpdate();
+            pstmtFollowingAsFollowee.setString(1, userId);
+            pstmtFollowingAsFollowee.executeUpdate();
 
-                // Invalidate related cache entries
-                invalidateCacheForUser(userId);
-                JavaBlobs.getInstance().deleteAllBlobs(userId, Token.get(userId));
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
-            }
-            return null;
-        });
+            invalidateCacheForUser(userId);
+            return ok();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
 
@@ -375,7 +326,6 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository{
         try (Jedis jedis = RedisCache.getCachePool().getResource()) {
             jedis.del("feed_user:" + userId);
             jedis.del(FOLLOWERS_CACHE_PREFIX + userId);
-            String queryUserShorts = format("SELECT s.shortId FROM Short s WHERE s.ownerId = '%s'", userId);
         } catch (JedisException e) {
             Log.warning("Failed to invalidate user cache in Redis: " + e.getMessage());
         }
@@ -415,13 +365,4 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository{
                 throw new RuntimeException(e);
             }
         }
-
-    private <T> Result<T> tryCatch(Supplier<T> supplierFunc) {
-        try {
-            return Result.ok(supplierFunc.get());
-        } catch (Exception x) {
-            x.printStackTrace();
-            return Result.error(INTERNAL_ERROR);
-        }
-    }
 }
