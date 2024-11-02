@@ -2,10 +2,9 @@ package storageConnections;
 
 import com.azure.cosmos.*;
 
-public class AzureCosmosDB {
+public class AzureCosmosDB_NoSQL {
 
     private static CosmosContainer instance;
-    private static boolean sqlType = Boolean.parseBoolean(System.getProperty("COSMOSDB_SQL_TYPE", "true"));
 
     public synchronized static CosmosContainer getContainer(String containerName) {
         if (instance != null)
@@ -24,9 +23,5 @@ public class AzureCosmosDB {
         instance = db.getContainer(containerName);
 
         return instance;
-    }
-
-    public static boolean isSQLBackend() {
-        return sqlType;
     }
 }

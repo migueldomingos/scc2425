@@ -30,7 +30,7 @@ public class CosmosDBNoSQLRepository implements ShortsRepository {
     private static final String SHORT_CACHE_PREFIX = "short:";
 
     public CosmosDBNoSQLRepository() {
-        container = AzureCosmosDB.getContainer(Shorts.NAME);
+        container = AzureCosmosDB_NoSQL.getContainer(Shorts.NAME);
     }
 
     @Override

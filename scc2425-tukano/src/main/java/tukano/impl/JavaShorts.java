@@ -5,8 +5,10 @@ import static tukano.api.Result.ErrorCode.*;
 import static tukano.api.Result.error;
 import static tukano.api.Result.ok;
 
-import storageConnections.AzureCosmosDB;
+import storageConnections.AzureCosmosDB_NoSQL;
 import storageConnections.CosmosDBNoSQLRepository;
+import storageConnections.CosmosDBPostgresSQLRepository;
+import storageConnections.ShortsRepository;
 import tukano.api.Result;
 import tukano.api.User;
 
@@ -14,7 +16,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.logging.Logger;
 
-import com.azure.cosmos.*;
 import tukano.api.Blobs;
 import tukano.api.Short;
 import tukano.api.Shorts;
@@ -24,7 +25,7 @@ public class JavaShorts implements Shorts {
 	private static final Logger Log = Logger.getLogger(JavaShorts.class.getName());
 	private static final String SHORT_CACHE_PREFIX = "short:";
 	private static Shorts instance;
-	private final CosmosDBNoSQLRepository repository;
+	private final ShortsRepository repository;
 
 
 	synchronized public static Shorts getInstance() {
@@ -34,8 +35,10 @@ public class JavaShorts implements Shorts {
 	}
 	
 	private JavaShorts() {
-		if (AzureCosmosDB.isSQLBackend()) {
-			this.repository = new CosmosDBPostgresRepository();
+		String sqlType = System.getProperty("COSMOSDB_SQL_TYPE");
+
+		if (sqlType.equals("P")) {
+			this.repository = new CosmosDBPostgresSQLRepository();
 		} else {
 			this.repository = new CosmosDBNoSQLRepository();
 		}

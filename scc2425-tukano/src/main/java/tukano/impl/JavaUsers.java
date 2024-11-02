@@ -16,7 +16,7 @@ import com.azure.cosmos.models.CosmosItemRequestOptions;
 import com.azure.cosmos.models.PartitionKey;
 import com.azure.cosmos.models.CosmosQueryRequestOptions;
 import com.azure.cosmos.util.CosmosPagedIterable;
-import storageConnections.AzureCosmosDB;
+import storageConnections.AzureCosmosDB_NoSQL;
 import storageConnections.RedisCache;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.exceptions.JedisException;
@@ -48,7 +48,7 @@ public class JavaUsers implements Users {
 	
 	private JavaUsers() {
 
-		container = AzureCosmosDB.getContainer(Users.NAME);
+		container = AzureCosmosDB_NoSQL.getContainer(Users.NAME);
 		shorts = JavaShorts.getInstance();
 	}
 	
