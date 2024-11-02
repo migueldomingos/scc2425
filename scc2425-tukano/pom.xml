@@ -32,10 +32,12 @@
 				<version>2.1</version>
 
 				<configuration>
-					<url>http://maven:s3cret@127.0.0.1:8080/manager/text</url>
+					<url>http://127.0.0.1:8080/manager/text</url>
 					<server>tomcat-docker</server>
+					<username>maven</username>
+					<password>s3cret</password>
 					<update>true</update>
-					<path>/project1</path>
+					<path>/project1_SCC</path>
 				</configuration>
 			</plugin>
 			<plugin>
