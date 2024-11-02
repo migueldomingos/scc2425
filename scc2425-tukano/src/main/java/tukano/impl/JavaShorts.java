@@ -110,6 +110,13 @@ public class JavaShorts implements Shorts {
 		if (!user.isOK())
 			return Result.error(FORBIDDEN);
 
+		String queryLikesToDelete = format("SELECT * FROM Likes l WHERE l.shortId = '%s'", shortId);
+		CosmosPagedIterable<Likes> likesToDelete = container.queryItems(queryLikesToDelete, new CosmosQueryRequestOptions(), Likes.class);
+
+		likesToDelete.forEach(like -> {
+			tryCatch(() -> container.deleteItem(like, new CosmosItemRequestOptions()).getItem());
+		});
+
 		Result<Object> deleteResult = tryCatch(() -> container.deleteItem(shrt.value(), new CosmosItemRequestOptions()).getItem());
 		if (deleteResult.isOK()) {
 			removeCachedShort(shortId);
