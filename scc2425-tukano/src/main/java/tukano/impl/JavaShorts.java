@@ -22,7 +22,6 @@ import tukano.api.Shorts;
 public class JavaShorts implements Shorts {
 
 	private static final Logger Log = Logger.getLogger(JavaShorts.class.getName());
-	private static final String SHORT_CACHE_PREFIX = "short:";
 	private static Shorts instance;
 	private final ShortsRepository repository;
 

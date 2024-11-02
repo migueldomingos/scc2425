@@ -2,43 +2,19 @@ package tukano.impl;
 
 import static java.lang.String.format;
 import static tukano.api.Result.error;
-import static tukano.api.Result.ok;
 import static tukano.api.Result.ErrorCode.*;
-
 import java.util.List;
-import java.util.function.Supplier;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
-
-import com.azure.cosmos.*;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.azure.cosmos.models.CosmosItemRequestOptions;
-import com.azure.cosmos.models.PartitionKey;
-import com.azure.cosmos.models.CosmosQueryRequestOptions;
-import com.azure.cosmos.util.CosmosPagedIterable;
-import storageConnections.AzureCosmosDB_NoSQL;
-import storageConnections.RedisCache;
-import redis.clients.jedis.Jedis;
-import redis.clients.jedis.exceptions.JedisException;
-
+import storageConnections.*;
 import tukano.api.Result;
-import tukano.api.Shorts;
 import tukano.api.User;
 import tukano.api.Users;
-import tukano.api.rest.RestShorts;
-import utils.JSON;
 
 public class JavaUsers implements Users {
 	
 	private static final Logger Log = Logger.getLogger(JavaUsers.class.getName());
-
-	private static final String USER_CACHE_PREFIX = "user:";
-
 	private static Users instance;
-
-    private final CosmosContainer container;
-
-	private final Shorts shorts;
+    private final UsersRepository repository;
 
 	synchronized public static Users getInstance() {
 		if( instance == null )
@@ -47,9 +23,13 @@ public class JavaUsers implements Users {
 	}
 	
 	private JavaUsers() {
+		String sqlType = System.getProperty("COSMOSDB_SQL_TYPE");
 
-		container = AzureCosmosDB_NoSQL.getContainer(Users.NAME);
-		shorts = JavaShorts.getInstance();
+		if (sqlType.equals("P")) {
+			this.repository = new UsersCosmosDBPostgresSQLRepository();
+		} else {
+			this.repository = new UsersCosmosDBNoSQLRepository();
+		}
 	}
 	
 	@Override
@@ -59,11 +39,7 @@ public class JavaUsers implements Users {
 		if( badUserInfo( user ) )
 				return error(BAD_REQUEST);
 
-		return tryCatch(() -> {
-			String userId = container.createItem(user).getItem().getUserId();
-			cacheUser(user);
-			return userId;
-		});
+		return repository.createUser(user);
 	}
 
 	@Override
@@ -73,21 +49,7 @@ public class JavaUsers implements Users {
 		if (userId == null)
 			return error(BAD_REQUEST);
 
-		User user = getCachedUser(userId);
-		if (user != null && user.getPwd().equals(pwd)) {
-			return ok(user);
-		}
-
-		Result<User> userRes = tryCatch( () -> container.readItem(userId, new PartitionKey(userId), User.class).getItem());
-
-		if (userRes.isOK()) {
-			if (!userRes.value().getPwd().equals(pwd)) {
-				return Result.error(FORBIDDEN);
-			}
-			cacheUser(userRes.value());
-		}
-
-		return userRes;
+		return repository.getUser(userId, pwd);
 	}
 
 	@Override
@@ -97,23 +59,7 @@ public class JavaUsers implements Users {
 		if (badUpdateUserInfo(userId, pwd, other))
 			return error(BAD_REQUEST);
 
-		Result<User> oldUserResult = getUser(userId, pwd);
-		if (!oldUserResult.isOK())
-			return oldUserResult;
-
-		if (other.getPwd() == null)
-			other.setPwd(oldUserResult.value().getPwd());
-		if (other.getEmail() == null)
-			other.setEmail(oldUserResult.value().getEmail());
-		if (other.getDisplayName() == null)
-			other.setDisplayName(oldUserResult.value().getDisplayName());
-
-		Result<User> updatedUserResult = tryCatch(() -> container.upsertItem(other).getItem());
-		if (updatedUserResult.isOK()) {
-			cacheUser(updatedUserResult.value());
-		}
-
-		return updatedUserResult;
+		return repository.updateUser(userId, pwd, other);
 	}
 
 	@Override
@@ -123,20 +69,7 @@ public class JavaUsers implements Users {
 		if (userId == null || pwd == null )
 			return error(BAD_REQUEST);
 
-		Result<User> oldUserResult = getUser(userId, pwd);
-		if (!oldUserResult.isOK())
-			return oldUserResult;
-
-		Result<Object> result = tryCatch( () -> container.deleteItem(oldUserResult.value(), new CosmosItemRequestOptions()).getItem());
-
-		if(result.isOK()){
-			shorts.deleteAllShorts(userId, pwd, RestShorts.TOKEN);
-			removeCachedUser(userId);
-
-			return oldUserResult;
-		}
-		else
-			return error(BAD_REQUEST);
+		return repository.deleteUser(userId, pwd);
 	}
 
 	@Override
@@ -147,42 +80,7 @@ public class JavaUsers implements Users {
 			return error(BAD_REQUEST);
 		}
 
-		String cacheKey = "user_search_" + pattern.toUpperCase();
-		List<User> users;
-
-		// Try to get the cached results from Redis
-		try (Jedis jedis = RedisCache.getCachePool().getResource()) {
-			String cachedUsersJson = jedis.get(cacheKey);
-
-			if (cachedUsersJson != null) {
-				users = JSON.decode(cachedUsersJson, new TypeReference<List<User>>() {});
-				if (users != null) {
-					return ok(users);
-				}
-			}
-		} catch (JedisException e) {
-			Log.warning("Redis cache access failed, proceeding with database query.");
-		}
-
-		try {
-			String query = format("SELECT * FROM User u WHERE CONTAINS(UPPER(u.userId), '%s')", pattern.toUpperCase());
-			CosmosPagedIterable<User> results = container.queryItems(query, new CosmosQueryRequestOptions(), User.class);
-
-			users = results.stream()
-					.map(User::copyWithoutPassword)
-					.collect(Collectors.toList());
-
-			// Cache the results in Redis for future requests
-			try (Jedis jedis = RedisCache.getCachePool().getResource()) {
-				jedis.setex(cacheKey, 3600, JSON.encode(users));  // Cache with TTL of 1 hour (3600 seconds)
-			} catch (JedisException e) {
-				Log.warning("Failed to cache search results in Redis.");
-			}
-
-			return ok(users);
-		} catch (CosmosException e) {
-			return error(INTERNAL_ERROR);
-		}
+		return repository.searchUsers(pattern);
 	}
 	
 	private boolean badUserInfo( User user) {
@@ -191,45 +89,5 @@ public class JavaUsers implements Users {
 	
 	private boolean badUpdateUserInfo( String userId, String pwd, User info) {
 		return (userId == null || pwd == null || info.getUserId() != null && ! userId.equals( info.getUserId()));
-	}
-
-	private <T> Result<T> tryCatch( Supplier<T> supplierFunc) {
-		try {
-			return Result.ok(supplierFunc.get());
-		} catch( CosmosException ce ) {
-			//ce.printStackTrace();
-			return Result.error ( errorCodeFromStatus(ce.getStatusCode() ));
-		} catch( Exception x ) {
-			x.printStackTrace();
-			return Result.error(INTERNAL_ERROR);
-		}
-	}
-
-	private static Result.ErrorCode errorCodeFromStatus( int status ) {
-		return switch( status ) {
-			case 200 -> OK;
-			case 404 -> NOT_FOUND;
-			case 409 -> CONFLICT;
-			default -> INTERNAL_ERROR;
-		};
-	}
-
-	private void cacheUser(User user) {
-		try (Jedis jedis = RedisCache.getCachePool().getResource()) {
-			jedis.set(USER_CACHE_PREFIX + user.getUserId(), JSON.encode(user));
-		}
-	}
-
-	private User getCachedUser(String userId) {
-		try (Jedis jedis = RedisCache.getCachePool().getResource()) {
-			String userJson = jedis.get(USER_CACHE_PREFIX + userId);
-			return userJson != null ? JSON.decode(userJson, User.class) : null;
-		}
-	}
-
-	private void removeCachedUser(String userId) {
-		try (Jedis jedis = RedisCache.getCachePool().getResource()) {
-			jedis.del(USER_CACHE_PREFIX + userId);
-		}
 	}
 }
