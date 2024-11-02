@@ -3,16 +3,16 @@ package storageConnections;
 import tukano.api.Result;
 import tukano.api.Short;
 
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.logging.Logger;
 
 public class CosmosDBPostgresSQLRepository implements ShortsRepository{
 
     private static final Logger Log = Logger.getLogger(CosmosDBPostgresSQLRepository.class.getName());
-    private static final AzureCosmosDB_PostgresSQL db;
 
     public CosmosDBPostgresSQLRepository() {
-
     }
 
     @Override
@@ -62,11 +62,6 @@ public class CosmosDBPostgresSQLRepository implements ShortsRepository{
 
     @Override
     public Result<Void> deleteAllShorts(String userId) {
-        return null;
-    }
-
-    @Override
-    public Result<List<String>> getFeed(String userId, String password) {
         return null;
     }
 }
