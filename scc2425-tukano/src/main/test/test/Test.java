@@ -36,6 +36,8 @@ public class Test {
 		var shorts = new RestShortsClient(serverURI);
 				
 		 show(users.createUser( new User("wales", "12345", "jimmy@wikipedia.pt", "Jimmy Wales") ));
+		 show(users.getUser("wales", "12345"));
+		 show(users.getUser("wales", "12345"));
 		 
 		 show(users.createUser( new User("liskov", "54321", "liskov@mit.edu", "Barbara Liskov") ));
 		 

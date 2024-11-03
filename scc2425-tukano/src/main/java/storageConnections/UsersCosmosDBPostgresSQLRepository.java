@@ -45,7 +45,6 @@ public class UsersCosmosDBPostgresSQLRepository implements UsersRepository {
             pstmt.setString(4, user.getDisplayName());
             pstmt.executeUpdate();
 
-            cacheUser(user);  // Cache the user after creation
             Log.info("User created successfully: " + user.getid());
             return Result.ok(user.getid());
         } catch (SQLException e) {
@@ -75,7 +74,7 @@ public class UsersCosmosDBPostgresSQLRepository implements UsersRepository {
                             rs.getString("email"),
                             rs.getString("display_name")
                     );
-                    cacheUser(user);  // Cache the user after retrieval
+                    cacheUser(user);
                     return Result.ok(user);
                 } else {
                     Log.info("User not found or incorrect password: " + userId);

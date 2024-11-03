@@ -44,11 +44,7 @@ public class UsersCosmosDBNoSQLRepository implements UsersRepository{
     public Result<String> createUser(User user) {
         return tryCatch(() -> {
             String userId = container.createItem(user).getItem().getid();
-            System.out.println("User created with ID: " + userId);
-
-            cacheUser(user);
-            System.out.println("User cached successfully.");
-
+            System.out.println("User created with ID: " + userId + "\n");
             return userId;
         });
     }
@@ -57,10 +53,10 @@ public class UsersCosmosDBNoSQLRepository implements UsersRepository{
     @Override
     public Result<User> getUser(String userId, String pwd) {
         User user = getCachedUser(userId);
-
         if (user != null && user.getPwd().equals(pwd)) {
             return ok(user);
         }
+
 
         Result<User> userRes = tryCatch( () -> container.readItem(userId, new PartitionKey(userId), User.class).getItem());
 
@@ -69,6 +65,7 @@ public class UsersCosmosDBNoSQLRepository implements UsersRepository{
                 return Result.error(FORBIDDEN);
             }
             cacheUser(userRes.value());
+            System.out.println("User cached successfully.");
         }
 
         return userRes;
@@ -100,7 +97,6 @@ public class UsersCosmosDBNoSQLRepository implements UsersRepository{
 
         if(result.isOK()){
             shorts.deleteAllShorts(userId, pwd, RestShorts.TOKEN);
-            Log.info("fez o deleteAllShorts");
             removeCachedUser(userId);
 
             return oldUserResult;
@@ -111,7 +107,7 @@ public class UsersCosmosDBNoSQLRepository implements UsersRepository{
 
     @Override
     public Result<List<User>> searchUsers(String pattern) {
-        String cacheKey = "user_search_" + pattern.toUpperCase();
+        String cacheKey = "user_search:" + pattern.toUpperCase();
         List<User> users;
 
         try (Jedis jedis = RedisCache.getCachePool().getResource()) {
