@@ -1,17 +1,6 @@
 package tukano.clients.rest;
 
 
-import static tukano.api.Result.error;
-import static tukano.api.Result.ok;
-import static tukano.api.Result.ErrorCode.INTERNAL_ERROR;
-import static tukano.api.Result.ErrorCode.TIMEOUT;
-
-import java.util.function.Supplier;
-import java.util.logging.Logger;
-
-import org.glassfish.jersey.client.ClientConfig;
-import org.glassfish.jersey.client.ClientProperties;
-
 import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
@@ -19,9 +8,19 @@ import jakarta.ws.rs.client.WebTarget;
 import jakarta.ws.rs.core.GenericType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.Response.Status;
+import org.glassfish.jersey.client.ClientConfig;
+import org.glassfish.jersey.client.ClientProperties;
 import tukano.api.Result;
 import tukano.api.Result.ErrorCode;
 import utils.Sleep;
+
+import java.util.function.Supplier;
+import java.util.logging.Logger;
+
+import static tukano.api.Result.ErrorCode.INTERNAL_ERROR;
+import static tukano.api.Result.ErrorCode.TIMEOUT;
+import static tukano.api.Result.error;
+import static tukano.api.Result.ok;
 
 public class RestClient {
 	private static Logger Log = Logger.getLogger(RestClient.class.getName());

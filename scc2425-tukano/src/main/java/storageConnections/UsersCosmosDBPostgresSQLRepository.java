@@ -39,15 +39,15 @@ public class UsersCosmosDBPostgresSQLRepository implements UsersRepository {
     public Result<String> createUser(User user) {
         String insertSQL = "INSERT INTO users (user_id, pwd, email, display_name) VALUES (?, ?, ?, ?)";
         try (PreparedStatement pstmt = connection.prepareStatement(insertSQL)) {
-            pstmt.setString(1, user.getUserId());
+            pstmt.setString(1, user.getid());
             pstmt.setString(2, user.getPwd());
             pstmt.setString(3, user.getEmail());
             pstmt.setString(4, user.getDisplayName());
             pstmt.executeUpdate();
 
             cacheUser(user);  // Cache the user after creation
-            Log.info("User created successfully: " + user.getUserId());
-            return Result.ok(user.getUserId());
+            Log.info("User created successfully: " + user.getid());
+            return Result.ok(user.getid());
         } catch (SQLException e) {
             Log.warning("Failed to create user: " + e.getMessage());
             return Result.error(Result.ErrorCode.INTERNAL_ERROR);
@@ -193,7 +193,7 @@ public class UsersCosmosDBPostgresSQLRepository implements UsersRepository {
 
     private void cacheUser(User user) {
         try (Jedis jedis = RedisCache.getCachePool().getResource()) {
-            jedis.set(USER_CACHE_PREFIX + user.getUserId(), JSON.encode(user));
+            jedis.set(USER_CACHE_PREFIX + user.getid(), JSON.encode(user));
         }
     }
 

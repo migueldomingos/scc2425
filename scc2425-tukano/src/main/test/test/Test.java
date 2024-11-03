@@ -1,16 +1,15 @@
 package test;
 
-import java.io.File;
-import java.net.URI;
-import java.nio.ByteBuffer;
-import java.util.Random;
-
 import tukano.api.Result;
 import tukano.api.User;
 import tukano.clients.rest.RestBlobsClient;
 import tukano.clients.rest.RestShortsClient;
 import tukano.clients.rest.RestUsersClient;
-import tukano.impl.rest.TukanoRestServer;
+
+import java.io.File;
+import java.net.URI;
+import java.nio.ByteBuffer;
+import java.util.Random;
 
 public class Test {
 	
@@ -19,18 +18,18 @@ public class Test {
 	}
 	
 	public static void main(String[] args ) throws Exception {
-		new Thread( () -> {	
+		/*new Thread( () -> {
 			try { 
 				TukanoRestServer.main( new String[] {} );
 			} catch( Exception x ) {
 				x.printStackTrace();
 			}
-		}).start();
+		}).start();*/
 
-		
 		Thread.sleep(1000);
 		
-		var serverURI = String.format("http://localhost:%s/rest", TukanoRestServer.PORT);
+		//var serverURI = String.format("http://localhost:%s/rest", TukanoRestServer.PORT);
+		var serverURI = "http://127.0.0.1:8080/project1_SCC/rest/";
 		
 		var blobs = new RestBlobsClient(serverURI);
 		var users = new RestUsersClient( serverURI);
@@ -59,13 +58,14 @@ public class Test {
 		
 		var blobId = new File( blobUrl.getPath() ).getName();
 		System.out.println( "BlobID:" + blobId );
-		
+
 		var token = blobUrl.getQuery().split("=")[1];
+		System.out.println("Token: " + token);
 		
 		blobs.upload(blobUrl.toString(), randomBytes( 100 ), token);
 
 		
-		var s2id = s2.value().getShortId();
+		var s2id = s2.value().getid();
 		
 		show(shorts.follow("liskov", "wales", true, "54321"));
 		show(shorts.followers("wales", "12345"));
@@ -73,7 +73,7 @@ public class Test {
 		show(shorts.like(s2id, "liskov", true, "54321"));
 		show(shorts.like(s2id, "liskov", true, "54321"));
 		show(shorts.likes(s2id , "54321"));
-		show(shorts.getFeed("liskov", "12345"));
+		show(shorts.getFeed("liskov", "54321"));
 		show(shorts.getShort( s2id ));
 		
 		show(shorts.getShorts( "wales" ));

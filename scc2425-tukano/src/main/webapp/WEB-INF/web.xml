@@ -15,7 +15,7 @@
     <servlet-class>org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher</servlet-class>
      <init-param>
         <param-name>jakarta.ws.rs.Application</param-name>
-        <param-value>tukano.impl.rest.TukanoRestServer</param-value>
+        <param-value>tukano.MainApplication</param-value>
     </init-param>
 </servlet>
 <servlet-mapping>

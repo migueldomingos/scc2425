@@ -52,7 +52,7 @@ public class TukanoRestServer extends Application {
 		Token.setSecret( Args.valueOf("-secret", ""));
 //		Props.load( Args.valueOf("-props", "").split(","));
 		Props.load("azurekeys-region.props");
-		
+
 		new TukanoRestServer().start();
 	}
 }

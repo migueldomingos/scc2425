@@ -32,7 +32,7 @@ public interface RestShorts {
 	@POST
 	@Path("/{" + USER_ID + "}")
 	@Produces(MediaType.APPLICATION_JSON)
-	Short createShort(@PathParam(USER_ID) String userId, @QueryParam(PWD) String password);
+    Short createShort(@PathParam(USER_ID) String userId, @QueryParam(PWD) String password);
 
 	@DELETE
 	@Path("/{" + SHORT_ID + "}")
@@ -41,7 +41,7 @@ public interface RestShorts {
 	@GET
 	@Path("/{" + SHORT_ID + "}" )
 	@Produces(MediaType.APPLICATION_JSON)
-	Short getShort(@PathParam(SHORT_ID) String shortId);
+    Short getShort(@PathParam(SHORT_ID) String shortId);
 
 	@GET
 	@Path("/{" + USER_ID + "}" + SHORTS )

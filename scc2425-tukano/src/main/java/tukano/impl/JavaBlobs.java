@@ -33,6 +33,7 @@ public class JavaBlobs implements Blobs {
 	private static Blobs instance;
 	private static final Logger Log = Logger.getLogger(JavaBlobs.class.getName());
 	private static final String BYTES_CACHE_PREFIX = "bytes:";
+	private static final String BlobStoreConnection = System.getProperty("BlobStoreConnection");
 
 	public String baseURI;
 	private final BlobContainerClient containerClient;
@@ -44,10 +45,10 @@ public class JavaBlobs implements Blobs {
 	}
 	
 	private JavaBlobs() {
-		baseURI = String.format("%s/%s/", TukanoRestServer.serverURI, Blobs.NAME);
+		baseURI = format("%s/%s/", TukanoRestServer.serverURI, Blobs.NAME);
 
 		containerClient = new BlobContainerClientBuilder()
-				.connectionString(System.getProperty("BlobStoreConnection"))
+				.connectionString(BlobStoreConnection)
 				.containerName(Blobs.NAME)
 				.buildClient();
 	}

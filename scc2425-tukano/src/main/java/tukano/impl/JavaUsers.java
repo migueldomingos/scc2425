@@ -23,7 +23,8 @@ public class JavaUsers implements Users {
 	}
 	
 	private JavaUsers() {
-		String sqlType = System.getProperty("COSMOSDB_SQL_TYPE");
+		//String sqlType = System.getProperty("COSMOSDB_SQL_TYPE");
+		String sqlType = "N";
 
 		if (sqlType.equals("P")) {
 			this.repository = new UsersCosmosDBPostgresSQLRepository();
@@ -76,7 +77,7 @@ public class JavaUsers implements Users {
 	public Result<List<User>> searchUsers(String pattern) {
 		Log.info(() -> format("searchUsers : patterns = %s\n", pattern));
 
-		if (pattern == null || pattern.trim().isEmpty()) {
+		if (pattern == null) {
 			return error(BAD_REQUEST);
 		}
 
@@ -84,10 +85,10 @@ public class JavaUsers implements Users {
 	}
 	
 	private boolean badUserInfo( User user) {
-		return (user.userId() == null || user.pwd() == null || user.displayName() == null || user.email() == null);
+		return (user.id() == null || user.pwd() == null || user.displayName() == null || user.email() == null);
 	}
 	
 	private boolean badUpdateUserInfo( String userId, String pwd, User info) {
-		return (userId == null || pwd == null || info.getUserId() != null && ! userId.equals( info.getUserId()));
+		return (userId == null || pwd == null || info.getid() != null && ! userId.equals( info.getid()));
 	}
 }

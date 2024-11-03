@@ -38,7 +38,7 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository{
     public Result<Short> createShort(Short shrt) {
         String insertSQL = "INSERT INTO shorts (short_id, user_id, blob_url) VALUES (?, ?, ?)";
         try (PreparedStatement pstmt = connection.prepareStatement(insertSQL)) {
-            pstmt.setString(1, shrt.getShortId());
+            pstmt.setString(1, shrt.getid());
             pstmt.setString(2, shrt.getOwnerId());
             pstmt.setString(3, shrt.getBlobUrl());
             pstmt.executeUpdate();
@@ -84,14 +84,14 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository{
 
         try (PreparedStatement pstmtLikes = connection.prepareStatement(deleteLikesSQL);
              PreparedStatement pstmtShort = connection.prepareStatement(deleteShortSQL)) {
-            pstmtLikes.setString(1, shrt.getShortId());
+            pstmtLikes.setString(1, shrt.id());
             pstmtLikes.executeUpdate();
 
-            pstmtShort.setString(1, shrt.getShortId());
+            pstmtShort.setString(1, shrt.id());
             pstmtShort.executeUpdate();
 
-            removeCachedShort(shrt.getShortId());
-            JavaBlobs.getInstance().delete(shrt.getShortId(), RestShorts.TOKEN);
+            removeCachedShort(shrt.id());
+            JavaBlobs.getInstance().delete(shrt.id(), RestShorts.TOKEN);
             return ok();
         } catch (SQLException e) {
             throw new RuntimeException(e);
@@ -168,14 +168,14 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository{
                 : "DELETE FROM likes WHERE user_id = ? AND short_id = ?";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, userId);
-            pstmt.setString(2, shrt.getShortId());
+            pstmt.setString(2, shrt.getid());
             if (isliked) {
                 pstmt.setString(3, shrt.getOwnerId());
             }
             pstmt.executeUpdate();
 
             try (Jedis jedis = RedisCache.getCachePool().getResource()) {
-                jedis.del("likes_short:" + shrt.getShortId());
+                jedis.del("likes_short:" + shrt.getid());
             } catch (JedisException e) {
                 Log.warning("Failed to update Redis cache.");
             }
@@ -273,7 +273,7 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository{
 
     private void cacheShort(Short shrt) {
         try (Jedis jedis = RedisCache.getCachePool().getResource()) {
-            jedis.set(SHORT_CACHE_PREFIX + shrt.getShortId(), JSON.encode(shrt));
+            jedis.set(SHORT_CACHE_PREFIX + shrt.getid(), JSON.encode(shrt));
         } catch (JedisException e) {
             Log.warning("Failed to cache short in Redis: " + e.getMessage());
         }
@@ -362,7 +362,7 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository{
         } catch (JedisException e) {
             Log.warning("Failed to invalidate cache for user " + userId + ": " + e.getMessage());
         } catch (SQLException e) {
-                throw new RuntimeException(e);
-            }
+            throw new RuntimeException(e);
         }
+    }
 }

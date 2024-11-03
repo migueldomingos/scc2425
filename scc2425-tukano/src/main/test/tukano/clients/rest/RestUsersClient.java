@@ -1,7 +1,5 @@
 package tukano.clients.rest;
 
-import java.util.List;
-
 import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.core.GenericType;
 import jakarta.ws.rs.core.MediaType;
@@ -9,6 +7,8 @@ import tukano.api.Result;
 import tukano.api.User;
 import tukano.api.Users;
 import tukano.api.rest.RestUsers;
+
+import java.util.List;
 
 
 public class RestUsersClient extends RestClient implements Users {

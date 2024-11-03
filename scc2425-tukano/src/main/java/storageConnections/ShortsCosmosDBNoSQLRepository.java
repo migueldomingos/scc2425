@@ -12,14 +12,18 @@ import tukano.api.*;
 import tukano.api.Short;
 import tukano.api.rest.RestShorts;
 import tukano.impl.JavaBlobs;
+import tukano.impl.Token;
 import tukano.impl.data.Following;
 import tukano.impl.data.Likes;
 import utils.JSON;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 import static tukano.api.Result.ErrorCode.*;
@@ -41,7 +45,7 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
         return tryCatch(() -> {
             Short createdShort = container.createItem(shrt).getItem();
             cacheShort(createdShort);
-            return createdShort;
+            return createdShort.copyWithLikes_And_Token(0);
         });
     }
 
@@ -49,7 +53,8 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
     public Result<Short> getShort(String shortId) {
         Short cachedShort = getCachedShort(shortId);
         if (cachedShort != null) {
-            return ok(cachedShort);
+            int numLikes = likes(shortId).value().size();
+            return ok(cachedShort.copyWithLikes_And_Token(numLikes));
         }
 
         Result<Short> shortResult = tryCatch(() -> container.readItem(shortId, new PartitionKey(shortId), Short.class).getItem());
@@ -58,12 +63,14 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
             cacheShort(shortResult.value());
         }
 
-        return shortResult;
+        int numLikes = likes(shortId).value().size();
+
+        return ok(shortResult.value().copyWithLikes_And_Token(numLikes));
     }
 
     @Override
     public Result<Void> deleteShort(Short shrt) {
-        String queryLikesToDelete = format("SELECT * FROM Likes l WHERE l.shortId = '%s'", shrt.getShortId());
+        String queryLikesToDelete = format("SELECT * FROM Likes l WHERE l.shortId = '%s'", shrt.getid());
         CosmosPagedIterable<Likes> likesToDelete = container.queryItems(queryLikesToDelete, new CosmosQueryRequestOptions(), Likes.class);
 
         likesToDelete.forEach(like -> {
@@ -72,11 +79,11 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
 
         Result<Object> deleteResult = tryCatch(() -> container.deleteItem(shrt, new CosmosItemRequestOptions()).getItem());
         if (deleteResult.isOK()) {
-            removeCachedShort(shrt.getShortId());
-            JavaBlobs.getInstance().delete(shrt.getShortId(), RestShorts.TOKEN);
+            removeCachedShort(shrt.getid());
+            JavaBlobs.getInstance().delete(shrt.getid(), RestShorts.TOKEN);
         }
 
-        return deleteResult.isOK() ? Result.ok() : Result.error(deleteResult.error());
+        return deleteResult.isOK() ? ok() : Result.error(deleteResult.error());
     }
 
     @Override
@@ -84,7 +91,7 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
         String cacheKey = "shorts_user:" + userId;
         List<String> shortIds;
 
-        try (Jedis jedis = RedisCache.getCachePool().getResource()) {
+        /*try (Jedis jedis = RedisCache.getCachePool().getResource()) {
             String cachedShortIdsJson = jedis.get(cacheKey);
             if (cachedShortIdsJson != null) {
                 shortIds = JSON.decode(cachedShortIdsJson, new TypeReference<List<String>>() {});
@@ -94,17 +101,20 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
             }
         } catch (JedisException e) {
             Log.warning("Failed to access Redis Cache.");
-        }
+        }*/
 
-        String query = format("SELECT s.shortId FROM Short s WHERE s.ownerId = '%s'", userId);
+        String query = format("SELECT * FROM shorts s WHERE s.ownerId = '%s'", userId);
         shortIds = new ArrayList<>();
 
         try {
-            CosmosPagedIterable<String> results = container.queryItems(query, new CosmosQueryRequestOptions(), String.class);
-            results.forEach(shortIds::add);
+            CosmosPagedIterable<Short> results = container.queryItems(query, new CosmosQueryRequestOptions(), Short.class);
+
+            for (Short s: results.stream().toList()) {
+                shortIds.add("ID: " + s.getid() + " | Num. of likes: " + s.getTotalLikes() + "\n");
+            }
 
             try (Jedis jedis = RedisCache.getCachePool().getResource()) {
-                jedis.setex(cacheKey, 3600, JSON.encode(shortIds));  // Cache com TTL de 1 hora (3600 segundos)
+                jedis.setex(cacheKey, 3600, JSON.encode(shortIds));
             } catch (JedisException e) {
                 Log.warning("Failed to store the results on Redis.");
             }
@@ -121,6 +131,13 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
 
         Following f = new Following(userId1, userId2);
 
+        String cacheKey = "feed_user:" + userId1;
+        try (Jedis jedis = RedisCache.getCachePool().getResource()) {
+            jedis.del(cacheKey);
+        } catch (JedisException e) {
+            Log.warning("Failed to delete feed in Redis cache.");
+        }
+
         if (isFollowing) {
             //we want to follow the person
 
@@ -131,12 +148,7 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
                 return Result.error(res.error());
         } else {
             //we want to unfollow the person
-            String cacheKey = "feed_user:" + userId1;
-            try (Jedis jedis = RedisCache.getCachePool().getResource()) {
-                jedis.del(cacheKey);
-            } catch (JedisException e) {
-                Log.warning("Failed to delete feed in Redis cache.");
-            }
+
             Result<Object> res = tryCatch( () -> container.deleteItem(f, new CosmosItemRequestOptions()).getItem());
             if (res.isOK())
                 return Result.ok();
@@ -147,24 +159,24 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
 
     @Override
     public Result<List<String>> followers(String userId) {
-        // Define the Redis cache key for followers
         String cacheKey = "followers_user:" + userId;
         List<String> followers;
 
-        followers = getCachedListFromCache(cacheKey);
+        /*followers = getCachedListFromCache(cacheKey);
         if (followers != null) {
             return Result.ok(followers);
-        }
+        }*/
 
-        // Query CosmosDB if cache is empty
-        String query = format("SELECT f.follower FROM Following f WHERE f.followee = '%s'", userId);
+        String query = format("SELECT * FROM shorts c WHERE c.followee = '%s'", userId);
         followers = new ArrayList<>();
 
         try {
-            CosmosPagedIterable<String> results = container.queryItems(query, new CosmosQueryRequestOptions(), String.class);
-            results.forEach(followers::add);
+            CosmosPagedIterable<Following> results = container.queryItems(query, new CosmosQueryRequestOptions(), Following.class);
 
-            // Store in cache with a TTL of 1 hour
+            for (Following f : results.stream().toList()) {
+                followers.add(f.getfollower());
+            }
+
             try (Jedis jedis = RedisCache.getCachePool().getResource()) {
                 jedis.setex(cacheKey, 3600, JSON.encode(followers));
             } catch (JedisException e) {
@@ -179,23 +191,29 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
 
     @Override
     public Result<Void> like(String userId, boolean isLiked, Short shrt) {
-        Likes l = new Likes(userId, shrt.getShortId(), shrt.getOwnerId());
+        Likes l = new Likes(userId, shrt.getid(), shrt.getOwnerId());
 
         if (isLiked) {
             Result<Likes> res = tryCatch( () -> container.createItem(l).getItem());
-            if (res.isOK())
-                return Result.ok();
+            if (res.isOK()) {
+                shrt.setTotalLikes(shrt.getTotalLikes() + 1);
+                container.upsertItem(shrt);
+                return ok();
+            }
             else
                 return Result.error(res.error());
         } else {
             Result<Object> res = tryCatch( () -> container.deleteItem(l, new CosmosItemRequestOptions()).getItem());
             if (res.isOK()){
+                shrt.setTotalLikes(shrt.getTotalLikes() - 1);
+                container.upsertItem(shrt);
+
                 try (Jedis jedis = RedisCache.getCachePool().getResource()) {
-                    jedis.del("likes_short:" + shrt.getShortId());
+                    jedis.del("likes_short:" + shrt.getid());
                 } catch (JedisException e) {
                     Log.warning("Failed to store likes in Redis cache.");
                 }
-                return Result.ok();
+                return ok();
             }
             else
                 return Result.error(res.error());
@@ -204,23 +222,22 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
 
     @Override
     public Result<List<String>> likes(String shortId) {
-        // Define the Redis cache key for likes
         String cacheKey = "likes_short:" + shortId;
-        List<String> likedUserIds = getCachedListFromCache(cacheKey);
+        /*List<String> likedUserIds = getCachedListFromCache(cacheKey);
         if (likedUserIds != null) {
             return Result.ok(likedUserIds);
-        }
+        }*/
 
-
-        // Query CosmosDB if cache is empty
-        String query = format("SELECT l.userId FROM Likes l WHERE l.shortId = '%s'", shortId);
-        likedUserIds = new ArrayList<>();
+        String query = format("SELECT * FROM shorts l WHERE l.shortId = '%s'", shortId);
+        List<String> likedUserIds = new ArrayList<>();
 
         try {
-            CosmosPagedIterable<String> results = container.queryItems(query, new CosmosQueryRequestOptions(), String.class);
-            results.forEach(likedUserIds::add);
+            CosmosPagedIterable<Likes> results = container.queryItems(query, new CosmosQueryRequestOptions(), Likes.class);
 
-            // Store in cache with a TTL of 1 hour
+            for (Likes l : results.stream().toList()) {
+                likedUserIds.add(l.getUserId());
+            }
+
             try (Jedis jedis = RedisCache.getCachePool().getResource()) {
                 jedis.setex(cacheKey, 3600, JSON.encode(likedUserIds));
             } catch (JedisException e) {
@@ -235,29 +252,34 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
 
     @Override
     public Result<List<String>> getFeed(String userId) {
-        // Define the Redis cache key for the feed
         String cacheKey = "feed_user:" + userId;
-        List<String> feedShortIds = getCachedListFromCache(cacheKey);
+        /*List<String> feedShortIds = getCachedListFromCache(cacheKey);
         if (feedShortIds != null) {
             return Result.ok(feedShortIds);
-        }
+        }*/
 
-        // Get following user IDs from followers method (not cached individually here)
-        List<String> followingUserIds = followers(userId).value();
+        List<String> followingUserIds = followees(userId).value();
 
-        // Query feed if following list is not empty
-        feedShortIds = new ArrayList<>();
+        List<String> feedShortIds = new ArrayList<>();
+
         if (!followingUserIds.isEmpty()) {
-            String feedQuery = format(
-                    "SELECT s.shortId FROM Short s WHERE ARRAY_CONTAINS(%s, s.ownerId) ORDER BY s.creationDate DESC",
-                    followingUserIds
-            );
+            List<Short> allShorts = new ArrayList<>();
+
+            for (String s : followingUserIds) {
+                String feedQuery = format("SELECT * FROM shorts s WHERE s.ownerId = '%s' AND s.timestamp <> 0 ORDER BY s.timestamp DESC", s);
+                CosmosPagedIterable<Short> feedResults = container.queryItems(feedQuery, new CosmosQueryRequestOptions(), Short.class);
+
+                allShorts.addAll(feedResults.stream().toList());
+            }
+
+            allShorts.sort(Comparator.comparing(Short::getTimestamp).reversed());
+            Log.info(allShorts.toString());
+
+            feedShortIds = allShorts.stream()
+                    .map(Short::getid)
+                    .collect(Collectors.toList());
 
             try {
-                CosmosPagedIterable<String> feedResults = container.queryItems(feedQuery, new CosmosQueryRequestOptions(), String.class);
-                feedResults.forEach(feedShortIds::add);
-
-                // Store feed in cache with a TTL of 1 hour
                 try (Jedis jedis = RedisCache.getCachePool().getResource()) {
                     jedis.setex(cacheKey, 3600, JSON.encode(feedShortIds));
                 } catch (JedisException e) {
@@ -274,32 +296,70 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
 
     @Override
     public Result<Void> deleteAllShorts(String userId) {
-        invalidateCacheForUser(userId);
+        //invalidateCacheForUser(userId);
+
+        Log.info("passou1");
+
 
         //delete shorts
-        String queryDeleteShorts = format("SELECT * FROM Short s WHERE s.ownerId = '%s'", userId);
+        String queryDeleteShorts = format("SELECT * FROM shorts s WHERE s.ownerId = '%s'", userId);
         CosmosPagedIterable<Short> shorts = container.queryItems(queryDeleteShorts, new CosmosQueryRequestOptions(), Short.class);
         shorts.forEach(shrt -> {
             tryCatch( () -> container.deleteItem(shrt, new CosmosItemRequestOptions()));
-            JavaBlobs.getInstance().delete(shrt.getShortId(), RestShorts.TOKEN);
+            JavaBlobs.getInstance().delete(shrt.getid(), Token.get(shrt.getid()));
         });
 
+        Log.info("passou2");
         //delete follows
-        String queryDeleteFollows = format("SELECT * FROM Following f WHERE f.follower = '%s' OR f.followee = '%s'", userId, userId);
+        String queryDeleteFollows = format("SELECT * FROM shorts f WHERE f.follower = '%s' OR f.followee = '%s'", userId, userId);
         CosmosPagedIterable<Following> follows = container.queryItems(queryDeleteFollows, new CosmosQueryRequestOptions(), Following.class);
         follows.forEach(follow -> tryCatch( () -> container.deleteItem(follow, new CosmosItemRequestOptions())));
 
         //delete likes
-        String queryDeleteLikes = format("SELECT * FROM Likes l WHERE l.ownerId = '%s' OR l.userId = '%s'", userId, userId);
+        Log.info("passou3");
+
+
+        String queryDeleteLikes = format("SELECT * FROM shorts l WHERE l.ownerId = '%s' OR l.userId = '%s'", userId, userId);
         CosmosPagedIterable<Likes> likes = container.queryItems(queryDeleteLikes, new CosmosQueryRequestOptions(), Likes.class);
         likes.forEach(like -> tryCatch( () -> container.deleteItem(like, new CosmosItemRequestOptions())));
 
-
+        Log.info("passou4");
 
         return Result.ok();
     }
 
     // Métodos auxiliares de cache
+
+    private Result<List<String>> followees(String userId) {
+        String cacheKey = "followees_user:" + userId;
+        List<String> followees;
+
+        /*followers = getCachedListFromCache(cacheKey);
+        if (followers != null) {
+            return Result.ok(followers);
+        }*/
+
+        String query = format("SELECT * FROM shorts c WHERE c.follower = '%s'", userId);
+        followees = new ArrayList<>();
+
+        try {
+            CosmosPagedIterable<Following> results = container.queryItems(query, new CosmosQueryRequestOptions(), Following.class);
+
+            for (Following f : results.stream().toList()) {
+                followees.add(f.getfollowee());
+            }
+
+            try (Jedis jedis = RedisCache.getCachePool().getResource()) {
+                jedis.setex(cacheKey, 3600, JSON.encode(followees));
+            } catch (JedisException e) {
+                Log.warning("Failed to store followers in Redis cache.");
+            }
+
+            return Result.ok(followees);
+        } catch (CosmosException e) {
+            return Result.error(INTERNAL_ERROR);
+        }
+    }
 
     private void invalidateCacheForUser(String userId) {
         try (Jedis jedis = RedisCache.getCachePool().getResource()) {
@@ -316,7 +376,7 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
             jedis.del(feedCacheKey);
 
             // Obtém todos os shorts do usuário e invalida o cache de likes para cada um
-            String queryUserShorts = format("SELECT s.shortId FROM Short s WHERE s.ownerId = '%s'", userId);
+            String queryUserShorts = format("SELECT s.shortId FROM shorts s WHERE s.ownerId = '%s'", userId);
             CosmosPagedIterable<String> userShorts = container.queryItems(queryUserShorts, new CosmosQueryRequestOptions(), String.class);
             userShorts.forEach(shortId -> {
                 String likesCacheKey = "likes_short:" + shortId;
@@ -332,7 +392,7 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
 
     private void cacheShort(Short shrt) {
         try (Jedis jedis = RedisCache.getCachePool().getResource()) {
-            jedis.set(SHORT_CACHE_PREFIX + shrt.getShortId(), JSON.encode(shrt));
+            jedis.set(SHORT_CACHE_PREFIX + shrt.getid(), JSON.encode(shrt));
         } catch (JedisException e) {
             Log.warning("Failed to cache short in Redis: " + e.getMessage());
         }

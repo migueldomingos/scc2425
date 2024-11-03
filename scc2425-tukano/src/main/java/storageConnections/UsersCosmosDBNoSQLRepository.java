@@ -43,11 +43,16 @@ public class UsersCosmosDBNoSQLRepository implements UsersRepository{
     @Override
     public Result<String> createUser(User user) {
         return tryCatch(() -> {
-            String userId = container.createItem(user).getItem().getUserId();
+            String userId = container.createItem(user).getItem().getid();
+            System.out.println("User created with ID: " + userId);
+
             cacheUser(user);
+            System.out.println("User cached successfully.");
+
             return userId;
         });
     }
+
 
     @Override
     public Result<User> getUser(String userId, String pwd) {
@@ -75,14 +80,9 @@ public class UsersCosmosDBNoSQLRepository implements UsersRepository{
         if (!oldUserResult.isOK())
             return oldUserResult;
 
-        if (other.getPwd() == null)
-            other.setPwd(oldUserResult.value().getPwd());
-        if (other.getEmail() == null)
-            other.setEmail(oldUserResult.value().getEmail());
-        if (other.getDisplayName() == null)
-            other.setDisplayName(oldUserResult.value().getDisplayName());
+        User newUser = oldUserResult.value().updateFrom(other);
 
-        Result<User> updatedUserResult = tryCatch(() -> container.upsertItem(other).getItem());
+        Result<User> updatedUserResult = tryCatch(() -> container.upsertItem(newUser).getItem());
         if (updatedUserResult.isOK()) {
             cacheUser(updatedUserResult.value());
         }
@@ -100,6 +100,7 @@ public class UsersCosmosDBNoSQLRepository implements UsersRepository{
 
         if(result.isOK()){
             shorts.deleteAllShorts(userId, pwd, RestShorts.TOKEN);
+            Log.info("fez o deleteAllShorts");
             removeCachedUser(userId);
 
             return oldUserResult;
@@ -127,7 +128,7 @@ public class UsersCosmosDBNoSQLRepository implements UsersRepository{
         }
 
         try {
-            String query = format("SELECT * FROM User u WHERE CONTAINS(UPPER(u.userId), '%s')", pattern.toUpperCase());
+            String query = format("SELECT * FROM %s u WHERE UPPER(u.id) LIKE '%%%s%%'", container.getId(), pattern.toUpperCase());
             CosmosPagedIterable<User> results = container.queryItems(query, new CosmosQueryRequestOptions(), User.class);
 
             users = results.stream()
@@ -169,7 +170,7 @@ public class UsersCosmosDBNoSQLRepository implements UsersRepository{
 
     private void cacheUser(User user) {
         try (Jedis jedis = RedisCache.getCachePool().getResource()) {
-            jedis.set(USER_CACHE_PREFIX + user.getUserId(), JSON.encode(user));
+            jedis.set(USER_CACHE_PREFIX + user.getid(), JSON.encode(user));
         }
     }
 

@@ -213,15 +213,6 @@ public class JavaShorts implements Shorts {
 	public Result<Void> deleteAllShorts(String userId, String password, String token) {
 		Log.info(() -> format("deleteAllShorts : userId = %s, password = %s, token = %s\n", userId, password, token));
 
-		if (!Token.isValid(token, userId)) {
-			return error(FORBIDDEN);
-		}
-
-		Result<User> user = okUser(userId, password);
-		if (!user.isOK()) {
-			return Result.error(FORBIDDEN);
-		}
-
 		return repository.deleteAllShorts(userId);
 	}
 
