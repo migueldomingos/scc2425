@@ -18,7 +18,7 @@ public class Following{
 
 	public Following(String follower, String followee) {
 		super();
-		this.id = "following+" + hashCode();
+		this.id = "following+" + hashCode() + UUID.randomUUID();
 
 		this.follower = follower;
 		this.followee = followee;

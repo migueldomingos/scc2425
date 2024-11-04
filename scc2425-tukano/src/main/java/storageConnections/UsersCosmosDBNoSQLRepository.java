@@ -6,9 +6,7 @@ import com.azure.cosmos.models.CosmosItemRequestOptions;
 import com.azure.cosmos.models.CosmosQueryRequestOptions;
 import com.azure.cosmos.models.PartitionKey;
 import com.azure.cosmos.util.CosmosPagedIterable;
-import com.fasterxml.jackson.core.type.TypeReference;
 import redis.clients.jedis.Jedis;
-import redis.clients.jedis.exceptions.JedisException;
 import tukano.api.Result;
 import tukano.api.Shorts;
 import tukano.api.User;
@@ -107,21 +105,8 @@ public class UsersCosmosDBNoSQLRepository implements UsersRepository{
 
     @Override
     public Result<List<User>> searchUsers(String pattern) {
-        String cacheKey = "user_search:" + pattern.toUpperCase();
+
         List<User> users;
-
-        try (Jedis jedis = RedisCache.getCachePool().getResource()) {
-            String cachedUsersJson = jedis.get(cacheKey);
-
-            if (cachedUsersJson != null) {
-                users = JSON.decode(cachedUsersJson, new TypeReference<List<User>>() {});
-                if (users != null) {
-                    return ok(users);
-                }
-            }
-        } catch (JedisException e) {
-            Log.warning("Redis cache access failed, proceeding with database query.");
-        }
 
         try {
             String query = format("SELECT * FROM %s u WHERE UPPER(u.id) LIKE '%%%s%%'", container.getId(), pattern.toUpperCase());
@@ -130,12 +115,6 @@ public class UsersCosmosDBNoSQLRepository implements UsersRepository{
             users = results.stream()
                     .map(User::copyWithoutPassword)
                     .collect(Collectors.toList());
-
-            try (Jedis jedis = RedisCache.getCachePool().getResource()) {
-                jedis.setex(cacheKey, 3600, JSON.encode(users));  // TTL of 1 hour (3600 seconds)
-            } catch (JedisException e) {
-                Log.warning("Failed to cache search results in Redis.");
-            }
 
             return ok(users);
         } catch (CosmosException e) {

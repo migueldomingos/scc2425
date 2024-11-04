@@ -36,15 +36,15 @@ public class Test {
 		var shorts = new RestShortsClient(serverURI);
 				
 		 show(users.createUser( new User("wales", "12345", "jimmy@wikipedia.pt", "Jimmy Wales") ));
-		 show(users.getUser("wales", "12345"));
-		 show(users.getUser("wales", "12345"));
+		 //show(users.getUser("wales", "12345"));
+		 //show(users.getUser("wales", "12345"));
 		 
 		 show(users.createUser( new User("liskov", "54321", "liskov@mit.edu", "Barbara Liskov") ));
 		 
-		 show(users.updateUser("wales", "12345", new User("wales", "12345", "jimmy@wikipedia.com", "" ) ));
+		 //show(users.updateUser("wales", "12345", new User("wales", "12345", "jimmy@wikipedia.com", "" ) ));
 		 
 		 
-		 show(users.searchUsers(""));
+		//show(users.searchUsers(""));
 		
 		
 		Result<tukano.api.Short> s1, s2;
@@ -68,23 +68,61 @@ public class Test {
 
 		
 		var s2id = s2.value().getid();
-		
+
+		show(shorts.follow("liskov", "wales", true, "54321"));
+		show(shorts.follow("wales", "liskov", true, "12345"));
+		show(shorts.like(s2id, "wales", true, "12345"));
+		show(shorts.like(s1.value().id(), "liskov", true, "54321"));
+		show(shorts.deleteAllShorts("wales", "12345", ""));
+
+		/*show(shorts.follow("liskov", "wales", true, "54321"));
+		show(shorts.getFeed("liskov", "54321"));
+		show(shorts.deleteShort(s1.value().id(), "12345"));
+		show(shorts.getFeed("liskov", "54321"));
+		show(shorts.follow("liskov", "wales", false, "54321"));
+		show(shorts.getFeed("liskov", "54321"));
+		show(shorts.follow("liskov", "wales", true, "54321"));
+		show(shorts.createShort("wales", "12345"));
+		show(shorts.createShort("wales", "12345"));
+		show(shorts.createShort("wales", "12345"));
+		show(shorts.createShort("wales", "12345"));
+		show(shorts.getFeed("liskov", "54321"));
+		/*show(shorts.follow("liskov", "wales", true, "54321"));
+		show(shorts.followers("wales", "12345"));
+		show(shorts.followers("wales", "12345"));
+		show(shorts.follow("liskov", "wales", false, "54321"));
+		show(shorts.followers("wales", "12345"));
 		show(shorts.follow("liskov", "wales", true, "54321"));
 		show(shorts.followers("wales", "12345"));
-		
+		show(shorts.followers("wales", "12345"));*/
+
+
+		//show(shorts.getShort( s2id ));
+		//show(shorts.getShort( s2id ));
+		/*show(shorts.like(s2id, "liskov", true, "54321"));
 		show(shorts.like(s2id, "liskov", true, "54321"));
+		show(shorts.like(s2id, "wales", true, "12345"));
+		show(shorts.getShort( s2id ));
+		show(shorts.likes(s2id , "54321"));
+		show(shorts.likes(s2id , "54321"));
+		show(shorts.like(s2id, "liskov", false, "54321"));
+		show(shorts.getShort( s2id ));
+		show(shorts.likes(s2id , "54321"));
 		show(shorts.like(s2id, "liskov", true, "54321"));
 		show(shorts.likes(s2id , "54321"));
-		show(shorts.getFeed("liskov", "54321"));
-		show(shorts.getShort( s2id ));
+		show(shorts.likes(s2id , "54321"));*/
+		//show(shorts.deleteShort(s2id, "54321"));
+		//show(shorts.getFeed("liskov", "54321"));
+		//show(shorts.getShort( s2id ));
 		
-		show(shorts.getShorts( "wales" ));
-		
-		show(shorts.followers("wales", "12345"));
+		//show(shorts.getShorts( "wales" ));
+		//show(shorts.getShorts( "wales" ));
 
-		show(shorts.getFeed("liskov", "12345"));
+		//show(shorts.followers("wales", "12345"));
 
-		show(shorts.getShort( s2id ));
+		//show(shorts.getFeed("liskov", "12345"));
+
+		//show(shorts.getShort( s2id ));
 //
 //		
 //		blobs.forEach( b -> {
@@ -93,7 +131,7 @@ public class Test {
 //			
 //		});
 		
-		 show(users.deleteUser("wales", "12345"));
+		//show(users.deleteUser("wales", "12345"));
 
 		System.exit(0);
 	}
