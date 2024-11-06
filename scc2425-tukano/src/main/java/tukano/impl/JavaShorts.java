@@ -47,7 +47,7 @@ public class JavaShorts implements Shorts {
 	public Result<Short> createShort(String userId, String password) {
 		Log.info(() -> format("createShort : userId = %s, pwd = %s\n", userId, password));
 
-		var shortId = format("%s+%s", userId, UUID.randomUUID());
+		var shortId = format("%s:%s", userId, UUID.randomUUID());
 		var blobUrl = format("%s/%s", Blobs.LINK, shortId);
 		var shrt = new Short(shortId, userId, blobUrl);
 

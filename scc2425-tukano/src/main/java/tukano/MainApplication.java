@@ -16,7 +16,8 @@ public class MainApplication extends Application {
 
     private Set<Class<?>> resources = new HashSet<>();
 
-    public static String serverURI = "http://127.0.0.1:8080/project1_SCC/rest";
+    //public static String serverURI = "http://127.0.0.1:8080/project1_SCC/rest";
+    public static String serverURI = "https://project1scc24256018360431.azurewebsites.net/rest";
 
     public MainApplication () {
         resources.add(RestBlobsResource.class);

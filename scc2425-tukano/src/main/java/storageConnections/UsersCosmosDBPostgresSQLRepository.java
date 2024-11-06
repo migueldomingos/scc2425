@@ -6,7 +6,6 @@ import tukano.api.Shorts;
 import tukano.api.User;
 import tukano.api.rest.RestShorts;
 import tukano.impl.JavaShorts;
-import tukano.impl.Token;
 import utils.JSON;
 
 import java.sql.Connection;

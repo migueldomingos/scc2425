@@ -35,7 +35,6 @@ public class JavaBlobs implements Blobs {
 	private static final String BYTES_CACHE_PREFIX = "bytes:";
 	private static final String BlobStoreConnection = System.getProperty("BlobStoreConnection");
 
-	public String baseURI;
 	private final BlobContainerClient containerClient;
 
 	synchronized public static Blobs getInstance() {
@@ -45,8 +44,6 @@ public class JavaBlobs implements Blobs {
 	}
 	
 	private JavaBlobs() {
-		baseURI = format("%s/%s/", TukanoRestServer.serverURI, Blobs.NAME);
-
 		containerClient = new BlobContainerClientBuilder()
 				.connectionString(BlobStoreConnection)
 				.containerName(Blobs.NAME)
