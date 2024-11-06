@@ -286,9 +286,6 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
     public Result<Void> deleteAllShorts(String userId) {
         invalidateCacheForUser(userId);
 
-        Log.info("passou1");
-
-
         //delete shorts
         String queryDeleteShorts = format("SELECT * FROM shorts s WHERE s.ownerId = '%s'", userId);
         CosmosPagedIterable<Short> shorts = container.queryItems(queryDeleteShorts, new CosmosQueryRequestOptions(), Short.class);
@@ -297,21 +294,15 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
             JavaBlobs.getInstance().delete(shrt.getid(), Token.get(shrt.getid()));
         });
 
-        Log.info("passou2");
         //delete follows
         String queryDeleteFollows = format("SELECT * FROM shorts f WHERE f.follower = '%s' OR f.followee = '%s'", userId, userId);
         CosmosPagedIterable<Following> follows = container.queryItems(queryDeleteFollows, new CosmosQueryRequestOptions(), Following.class);
         follows.forEach(follow -> tryCatch( () -> container.deleteItem(follow, new CosmosItemRequestOptions())));
 
         //delete likes
-        Log.info("passou3");
-
-
         String queryDeleteLikes = format("SELECT * FROM shorts l WHERE l.ownerId = '%s' OR l.userId = '%s'", userId, userId);
         CosmosPagedIterable<Likes> likes = container.queryItems(queryDeleteLikes, new CosmosQueryRequestOptions(), Likes.class);
         likes.forEach(like -> tryCatch( () -> container.deleteItem(like, new CosmosItemRequestOptions())));
-
-        Log.info("passou4");
 
         return Result.ok();
     }
@@ -417,7 +408,7 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
         try {
             return Result.ok(supplierFunc.get());
         } catch( CosmosException ce ) {
-            //ce.printStackTrace();
+            ce.printStackTrace();
             return Result.error ( errorCodeFromStatus(ce.getStatusCode() ));
         } catch( Exception x ) {
             x.printStackTrace();

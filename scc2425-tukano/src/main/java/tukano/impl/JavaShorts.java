@@ -156,8 +156,9 @@ public class JavaShorts implements Shorts {
 		}
 
 		Result<Short> resShort = getShort(shortId);
-		if (!resShort.isOK())
+		if (!resShort.isOK()) {
 			return Result.error(NOT_FOUND);
+		}
 
 		return repository.like(userId, isLiked, resShort.value());
 	}

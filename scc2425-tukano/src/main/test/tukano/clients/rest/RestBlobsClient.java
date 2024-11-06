@@ -13,6 +13,8 @@ public class RestBlobsClient extends RestClient implements Blobs {
 	}
 
 	private Result<Void> _upload(String blobURL, byte[] bytes, String token) {
+		//System.out.println(blobURL);
+
 		return super.toJavaResult(
 				client.target( blobURL )
 				.queryParam(RestBlobs.TOKEN, token)
