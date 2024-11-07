@@ -53,6 +53,8 @@ public class UsersCosmosDBNoSQLRepository implements UsersRepository{
         User user = getCachedUser(userId);
         if (user != null && user.getPwd().equals(pwd)) {
             return ok(user);
+        } else if (user != null && !user.getPwd().equals(pwd)) {
+            return Result.error(FORBIDDEN);
         }
 
 

@@ -37,18 +37,18 @@ public class Test {
 		var shorts = new RestShortsClient(serverURI);
 				
 		 show(users.createUser( new User("wales", "12345", "jimmy@wikipedia.pt", "Jimmy Wales") ));
-		 //show(users.getUser("wales", "12345"));
-		 //show(users.getUser("waless", "12345"));
-		 //show(users.getUser("wales", "12"));
-		 //show(users.getUser("wales", "12345"));
+		 show(users.getUser("wales", "12345"));
+		 show(users.getUser("waless", "12345"));
+		 show(users.getUser("wales", "12"));
 		 
 		 show(users.createUser( new User("liskov", "54321", "liskov@mit.edu", "Barbara Liskov") ));
 		 
 		 show(users.updateUser("wales", "12345", new User("wales", "12345", "jimmy@wikipedia.com", "" ) ));
-		 show(users.updateUser("wales", "12345", new User("wales", "12345", "jimmy@wikipedia.com", "" ) ));
+		 show(users.updateUser("wales", "1235", new User("wales", "12345", "jimmy@wikipedia.com", "" ) ));
+		 show(users.updateUser("walesss", "12345", new User("wales", "12345", "jimmy@wikipedia.com", "" ) ));
+		 show(users.updateUser("my brother", "12345", new User("my brother", "12345", "jimmy@wikipedia.com", "" ) ));
 
-		 
-		show(users.searchUsers(""));
+		//show(users.searchUsers(""));
 		
 		
 		Result<tukano.api.Short> s1, s2;
@@ -86,6 +86,7 @@ public class Test {
 		show(shorts.followers("wales", "12345"));*/
 		show(users.deleteUser("wales", "12345"));
 		show(users.deleteUser("liskov", "5"));
+		show(users.deleteUser("liskovvv", "54321"));
 		show(users.deleteUser("liskov", "54321"));
 
 
