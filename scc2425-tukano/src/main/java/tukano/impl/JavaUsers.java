@@ -57,6 +57,11 @@ public class JavaUsers implements Users {
 	public Result<User> updateUser(String userId, String pwd, User other) {
 		Log.info(() -> format("updateUser : userId = %s, pwd = %s, user: %s\n", userId, pwd, other));
 
+		Result<User> result;
+		if(!(result = getUser(userId, pwd)).isOK()){
+			return result;
+		}
+
 		if (badUpdateUserInfo(userId, pwd, other))
 			return error(BAD_REQUEST);
 
@@ -66,6 +71,11 @@ public class JavaUsers implements Users {
 	@Override
 	public Result<User> deleteUser(String userId, String pwd) {
 		Log.info(() -> format("deleteUser : userId = %s, pwd = %s\n", userId, pwd));
+
+		Result<User> result;
+		if(!(result = getUser(userId, pwd)).isOK()){
+			return result;
+		}
 
 		if (userId == null || pwd == null )
 			return error(BAD_REQUEST);
