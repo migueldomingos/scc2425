@@ -96,9 +96,7 @@ public class UsersCosmosDBNoSQLRepository implements UsersRepository{
         Result<Object> result = tryCatch( () -> container.deleteItem(oldUserResult.value(), new CosmosItemRequestOptions()).getItem());
 
         if(result.isOK()){
-            Executors.defaultThreadFactory().newThread( () -> {
-                shorts.deleteAllShorts(userId, pwd, RestShorts.TOKEN);
-            }).start();
+            shorts.deleteAllShorts(userId, pwd, RestShorts.TOKEN);
             removeCachedUser(userId);
 
             return oldUserResult;
