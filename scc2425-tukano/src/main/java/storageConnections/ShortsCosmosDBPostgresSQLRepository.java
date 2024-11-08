@@ -39,7 +39,7 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository {
             removeCachedShort(shrt.id(), shrt.ownerId());
         }
 
-        return errorOrValue(DB.insertOne(shrt), s -> s.copyWithLikes_And_Token(0));
+        return shortResult;
     }
 
     @Override
@@ -279,13 +279,20 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository {
 
     private void invalidateCacheForUser(String userId) {
         try (Jedis jedis = RedisCache.getCachePool().getResource()) {
+            Log.info("passou aqui 1");
+
+
             // Invalida o cache dos shorts do usuário
             String shortsCacheKey = GETSHORTS_CACHE_PREFIX + userId;
             jedis.del(shortsCacheKey);
 
+            Log.info("passou aqui 2");
+
             // Invalida o cache dos seguidores do usuário
             String followersCacheKey = FOLLOWERS_CACHE_PREFIX + userId;
             jedis.del(followersCacheKey);
+
+            Log.info("passou aqui 3");
 
             // Obtém todos os shorts do usuário e invalida o cache de likes para cada um
             String queryUserShorts = format("SELECT s.id FROM shorts s WHERE s.ownerId = '%s'", userId);
