@@ -296,9 +296,9 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository {
 
             // Obtém todos os shorts do usuário e invalida o cache de likes para cada um
             String queryUserShorts = format("SELECT s.id FROM shorts s WHERE s.ownerId = '%s'", userId);
-            List<Short> userShorts = DB.sql(queryUserShorts, Short.class);
+            List<String> userShorts = DB.sql(queryUserShorts, String.class);
             userShorts.forEach(shrt -> {
-                String likesCacheKey = LIKES_CACHE_PREFIX + shrt.getid();
+                String likesCacheKey = LIKES_CACHE_PREFIX + shrt;
                 jedis.del(likesCacheKey);
             });
 
