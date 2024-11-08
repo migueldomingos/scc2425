@@ -30,7 +30,7 @@ public class Likes {
 		this.shortId = shortId;
 		this.ownerId = ownerId;
 
-		this.id = "likes+" + hashCode();
+		this.id = "likes:" + hashCode();
 	}
 
 	public String getid() {return id;}

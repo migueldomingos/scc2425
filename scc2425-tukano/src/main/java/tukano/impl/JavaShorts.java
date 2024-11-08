@@ -148,7 +148,7 @@ public class JavaShorts implements Shorts {
 		Result<User> user = okUser(userId, password);
 
 		if (user.error().equals(NOT_FOUND)) {
-			return Result.error(NOT_FOUND);
+			return Result.error(BAD_REQUEST);
 		}
 
 		if (!user.isOK()) {
@@ -213,6 +213,14 @@ public class JavaShorts implements Shorts {
 	@Override
 	public Result<Void> deleteAllShorts(String userId, String password, String token) {
 		Log.info(() -> format("deleteAllShorts : userId = %s, password = %s, token = %s\n", userId, password, token));
+
+		Result<User> user = okUser(userId, password);
+		if (user.error().equals(NOT_FOUND)) {
+			return Result.error(NOT_FOUND);
+		}
+		if (user.error().equals(FORBIDDEN)) {
+			return Result.error(FORBIDDEN);
+		}
 
 		return repository.deleteAllShorts(userId);
 	}

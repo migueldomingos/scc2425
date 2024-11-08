@@ -5,6 +5,7 @@ import tukano.api.User;
 import tukano.clients.rest.RestBlobsClient;
 import tukano.clients.rest.RestShortsClient;
 import tukano.clients.rest.RestUsersClient;
+import tukano.impl.Token;
 
 import java.io.File;
 import java.net.URI;
@@ -38,37 +39,31 @@ public class Test {
 				
 		 show(users.createUser( new User("wales", "12345", "jimmy@wikipedia.pt", "Jimmy Wales") ));
 		 show(users.getUser("wales", "12345"));
-		 show(users.getUser("waless", "12345"));
-		 show(users.getUser("wales", "12"));
 		 
 		 show(users.createUser( new User("liskov", "54321", "liskov@mit.edu", "Barbara Liskov") ));
-		 
 		 show(users.updateUser("wales", "12345", new User("wales", "12345", "jimmy@wikipedia.com", "" ) ));
-		 show(users.updateUser("wales", "1235", new User("wales", "12345", "jimmy@wikipedia.com", "" ) ));
-		 show(users.updateUser("walesss", "12345", new User("wales", "12345", "jimmy@wikipedia.com", "" ) ));
-		 show(users.updateUser("my brother", "12345", new User("my brother", "12345", "jimmy@wikipedia.com", "" ) ));
 
-		//show(users.searchUsers(""));
+		 show(users.searchUsers(""));
 		
 		
-		Result<tukano.api.Short> s1, s2;
+		 Result<tukano.api.Short> s1, s2;
 
-		show(s2 = shorts.createShort("liskov", "54321"));		
-		show(s1 = shorts.createShort("wales", "12345"));
-		show(shorts.createShort("wales", "12345"));
-		show(shorts.createShort("wales", "12345"));
-		show(shorts.createShort("wales", "12345"));
+		 show(s2 = shorts.createShort("liskov", "54321"));
+		 show(s1 = shorts.createShort("wales", "12345"));
+		 show(shorts.createShort("wales", "12345"));
+		 show(shorts.createShort("wales", "12345"));
+		 show(shorts.createShort("wales", "12345"));
 
 		var blobUrl = URI.create(s2.value().getBlobUrl());
 		System.out.println( "------->" + blobUrl );
-		
+
 		var blobId = new File( blobUrl.getPath() ).getName();
 		System.out.println( "BlobID:" + blobId );
 
 		var token = blobUrl.getQuery().split("=")[1];
 		System.out.println("Token: " + token);
-		
-		//show(blobs.upload(blobUrl.toString(), randomBytes( 100 ), token)); /////////////////////////
+
+		show(blobs.upload(blobUrl.toString(), randomBytes( 100 ), token));
 
 		
 		var s2id = s2.value().getid();
@@ -81,12 +76,11 @@ public class Test {
 		show(shorts.deleteAllShorts("wales", "12345", ""));
 		show(shorts.getFeed("liskov", "54321"));
 		show(shorts.likes(s2id , "54321"));
-		show(shorts.getShort( s2id ));
-		show(shorts.getShorts( "wales" ));
+		show(shorts.getShort( s2id ));*/
+		//show(blobs.download(blobUrl.toString(), token));
+		/*show(shorts.getShorts( "wales" ));
 		show(shorts.followers("wales", "12345"));*/
 		show(users.deleteUser("wales", "12345"));
-		show(users.deleteUser("liskov", "5"));
-		show(users.deleteUser("liskovvv", "54321"));
 		show(users.deleteUser("liskov", "54321"));
 
 

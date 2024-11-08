@@ -64,9 +64,10 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
 
         if (shortResult.isOK()) {
             cacheShort(shortResult.value());
+            return ok(shortResult.value().copyWithLikes_And_Token(shortResult.value().totalLikes()));
         }
 
-        return ok(shortResult.value().copyWithLikes_And_Token(shortResult.value().totalLikes()));
+        return shortResult;
     }
 
     @Override
