@@ -1,5 +1,6 @@
 package utils;
 
+import java.util.Properties;
 import java.util.logging.Logger;
 import java.util.List;
 import java.util.function.Consumer;
@@ -17,7 +18,7 @@ import tukano.api.Result.ErrorCode;
 /**
  * A helper class to perform POJO (Plain Old Java Objects) persistence, using
  * Hibernate and a backing relational database.
- * 
+ *
  * @param <Session>
  */
 public class Hibernate {
@@ -28,10 +29,14 @@ public class Hibernate {
 
 	private Hibernate() {
 		try {
-			sessionFactory = new Configuration().configure()
-					.setProperty("connection.username", System.getProperty("COSMOSDB_POSTGRES_USER"))
-					.setProperty("connection.password", System.getProperty("COSMOSDB_POSTGRES_PASSWORD"))
-					.setProperty("connection.url", System.getProperty("COSMOSDB_POSTGRES_URL"))
+			Properties props = new Properties();
+			props.setProperty("hibernate.connection.url", Props.get("COSMOSDB_POSTGRES_URL", ""));
+			props.setProperty("hibernate.connection.username", Props.get("COSMOSDB_POSTGRES_USER", ""));
+			props.setProperty("hibernate.connection.password", Props.get("COSMOSDB_POSTGRES_PASSWORD", ""));
+
+			sessionFactory = new Configuration()
+					.configure()
+					.addProperties(props)
 					.buildSessionFactory();
 
 		} catch (Exception e) {
@@ -42,7 +47,7 @@ public class Hibernate {
 	/**
 	 * Returns the Hibernate instance, initializing if necessary. Requires a
 	 * configuration file (hibernate.cfg.xml)
-	 * 
+	 *
 	 * @return
 	 */
 	synchronized public static Hibernate getInstance() {
@@ -62,18 +67,18 @@ public class Hibernate {
 			var res = hibernate.merge( obj );
 			if( res == null)
 				return Result.error( ErrorCode.NOT_FOUND );
-			
+
 			return Result.ok( res );
 		});
 	}
-	
+
 	public <T> Result<T> deleteOne(T obj) {
 		return execute( hibernate -> {
 			hibernate.remove( obj );
 			return Result.ok( obj );
 		});
 	}
-		
+
 	public <T> Result<T> getOne(Object id, Class<T> clazz) {
 		try (var session = sessionFactory.openSession()) {
 			var res = session.find(clazz, id);
@@ -85,7 +90,7 @@ public class Hibernate {
 			throw e;
 		}
 	}
-	
+
 	public <T> List<T> sql(String sqlStatement, Class<T> clazz) {
 		try (var session = sessionFactory.openSession()) {
 			var query = session.createNativeQuery(sqlStatement, clazz);
@@ -94,14 +99,14 @@ public class Hibernate {
 			throw e;
 		}
 	}
-	
+
 	public <T> Result<T> execute(Consumer<Session> proc) {
 		return execute( (hibernate) -> {
 			proc.accept( hibernate);
 			return Result.ok();
 		});
 	}
-	
+
 	public <T> Result<T> execute(Function<Session, Result<T>> func) {
 		Transaction tx = null;
 		try (var session = sessionFactory.openSession()) {
@@ -111,13 +116,13 @@ public class Hibernate {
 			tx.commit();
 			return res;
 		}
-		catch (ConstraintViolationException __) {	
+		catch (ConstraintViolationException __) {
 			return Result.error(ErrorCode.CONFLICT);
-		}  
+		}
 		catch (Exception e) {
 			if( tx != null )
 				tx.rollback();
-			
+
 			e.printStackTrace();
 			throw e;
 		}
