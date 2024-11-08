@@ -15,8 +15,10 @@ var registeredUsers = []
 var images = []
 
 // All endpoints starting with the following prefixes will be aggregated in the same for the statistics
-var statsPrefix = [ ["/rest/media/","GET"],
-			["/rest/media","POST"]
+var statsPrefix = [ ["/rest/users","GET"],
+			["/rest/users","POST"],
+			["/rest/users","PUT"],
+			["/rest/users","DELETE"]
 	]
 
 // Function used to compress statistics
@@ -79,7 +81,7 @@ function uploadRandomizedUser(requestParams, context, ee, next) {
     let displayName = username;
     
     const user = {
-        userId: username,
+        id: username,
         pwd: pword,
         email: email,
         displayName: username
