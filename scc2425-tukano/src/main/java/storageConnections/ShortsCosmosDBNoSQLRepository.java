@@ -10,7 +10,6 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.exceptions.JedisException;
 import tukano.api.*;
 import tukano.api.Short;
-import tukano.api.rest.RestShorts;
 import tukano.impl.JavaBlobs;
 import tukano.impl.Token;
 import tukano.impl.data.Following;
@@ -18,7 +17,6 @@ import tukano.impl.data.Likes;
 import utils.JSON;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
@@ -47,8 +45,7 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
 
         return tryCatch(() -> {
             Short createdShort = container.createItem(shrt).getItem();
-            Jedis jedis = RedisCache.getCachePool().getResource();
-            jedis.del(GETSHORTS_CACHE_PREFIX + shrt.getid());
+            removeCachedShort(shrt.id(), shrt.getOwnerId());
             return createdShort.copyWithLikes_And_Token(0);
         });
     }
@@ -91,19 +88,10 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
     @Override
     public Result<List<String>> getShorts(String userId) {
         String cacheKey = GETSHORTS_CACHE_PREFIX + userId;
-        List<String> shortIds;
+        List<String> shortIds = getCachedListFromCache(cacheKey);
 
-        try (Jedis jedis = RedisCache.getCachePool().getResource()) {
-            String cachedShortIdsJson = jedis.get(cacheKey);
-            if (cachedShortIdsJson != null && !cachedShortIdsJson.isEmpty()) {
-                shortIds = JSON.decode(cachedShortIdsJson, new TypeReference<List<String>>() {});
-                if (shortIds != null) {
-                    return Result.ok(shortIds);
-                }
-            }
-        } catch (JedisException e) {
-            Log.warning("Failed to access Redis Cache.");
-        }
+        if (shortIds != null && !shortIds.isEmpty())
+            return Result.ok(shortIds);
 
         String query = format("SELECT * FROM shorts s WHERE s.ownerId = '%s'", userId);
         shortIds = new ArrayList<>();
@@ -142,14 +130,14 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
             res = tryCatch( () -> (Following) container.deleteItem(f, new CosmosItemRequestOptions()).getItem());
         }
 
-        try (Jedis jedis = RedisCache.getCachePool().getResource()) {
-            jedis.del(FOLLOWERS_CACHE_PREFIX + userId2);
-        } catch (JedisException e) {
-            Log.warning("Failed to remove cached Followers from Redis: " + e.getMessage());
-        }
-
-        if (res.isOK())
+        if (res.isOK()) {
+            try (Jedis jedis = RedisCache.getCachePool().getResource()) {
+                jedis.del(FOLLOWERS_CACHE_PREFIX + userId2);
+            } catch (JedisException e) {
+                Log.warning("Failed to remove cached Followers from Redis: " + e.getMessage());
+            }
             return Result.ok();
+        }
         else
             return Result.error(res.error());
     }
@@ -230,7 +218,7 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
         String cacheKey = LIKES_CACHE_PREFIX + shortId;
         List<String> likedUserIds = getCachedListFromCache(cacheKey);
         if (likedUserIds != null && !likedUserIds.isEmpty()) {
-            return Result.ok(likedUserIds);
+            return ok(likedUserIds);
         }
 
         String query = format("SELECT * FROM shorts l WHERE l.shortId = '%s'", shortId);
@@ -358,7 +346,6 @@ public class ShortsCosmosDBNoSQLRepository implements ShortsRepository {
         } catch (JedisException e) {
             Log.warning("Failed to invalidate cache for user " + userId + ": " + e.getMessage());
         }
-
     }
 
     private void cacheShort(Short shrt) {

@@ -5,7 +5,6 @@ import tukano.api.User;
 import tukano.clients.rest.RestBlobsClient;
 import tukano.clients.rest.RestShortsClient;
 import tukano.clients.rest.RestUsersClient;
-import tukano.impl.Token;
 
 import java.io.File;
 import java.net.URI;
@@ -70,7 +69,8 @@ public class Test {
 
 		show(shorts.follow("liskov", "wales", true, "54321"));
 		show(shorts.follow("wales", "liskov", true, "12345"));
-		show(shorts.like(s2id, "wales", true, "12345"));
+		show(shorts.followers("wales", "12345"));
+		/*show(shorts.like(s2id, "wales", true, "12345"));
 		show(shorts.like(s1.value().getid(), "liskov", true, "54321"));
 		show(shorts.deleteShort(s1.value().getid(), "12345"));
 		show(shorts.deleteAllShorts("wales", "12345", ""));
@@ -81,7 +81,7 @@ public class Test {
 		show(shorts.getShorts( "wales" ));
 		show(shorts.followers("wales", "12345"));
 		show(users.deleteUser("wales", "12345"));
-		show(users.deleteUser("liskov", "54321"));
+		show(users.deleteUser("liskov", "54321"));*/
 
 
 //

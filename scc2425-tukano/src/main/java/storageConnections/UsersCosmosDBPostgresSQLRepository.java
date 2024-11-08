@@ -10,14 +10,19 @@ import static tukano.api.Result.ErrorCode.FORBIDDEN;
 import java.util.List;
 import java.util.concurrent.Executors;
 
+import redis.clients.jedis.Jedis;
 import tukano.api.Result;
 import tukano.api.User;
 import tukano.impl.JavaBlobs;
 import tukano.impl.Token;
 import utils.DB;
 import tukano.impl.JavaShorts;
+import utils.JSON;
 
 public class UsersCosmosDBPostgresSQLRepository implements UsersRepository {
+
+    private static final String USER_CACHE_PREFIX = "user:";
+
     public UsersCosmosDBPostgresSQLRepository() {}
 
     @Override
@@ -27,12 +32,33 @@ public class UsersCosmosDBPostgresSQLRepository implements UsersRepository {
 
     @Override
     public Result<User> getUser(String userId, String pwd) {
-        return validatedUserOrError( DB.getOne( userId, User.class), pwd);
+
+        User user = getCachedUser(userId);
+        if (user != null && user.getPwd().equals(pwd)) {
+            return ok(user);
+        } else if (user != null && !user.getPwd().equals(pwd)) {
+            return Result.error(FORBIDDEN);
+        }
+
+        Result<User> userResult = validatedUserOrError( DB.getOne( userId, User.class), pwd);
+
+        if (userResult.isOK()) {
+            cacheUser(userResult.value());
+            System.out.println("User cached successfully.");
+        }
+
+        return userResult;
     }
 
     @Override
     public Result<User> updateUser(String userId, String pwd, User other) {
-        return errorOrResult( validatedUserOrError(DB.getOne( userId, User.class), pwd), user -> DB.updateOne( user.updateFrom(other)));
+
+        Result<User> resUser = errorOrResult( validatedUserOrError(DB.getOne( userId, User.class), pwd), user -> DB.updateOne( user.updateFrom(other)));
+
+        if (resUser.isOK())
+            cacheUser(resUser.value());
+
+        return resUser;
     }
 
     @Override
@@ -45,7 +71,12 @@ public class UsersCosmosDBPostgresSQLRepository implements UsersRepository {
                 JavaBlobs.getInstance().deleteAllBlobs(userId, Token.get(userId));
             }).start();
 
-            return DB.deleteOne( user);
+            Result<User> userResult = DB.deleteOne( user);
+
+            if (userResult.isOK())
+                removeCachedUser(userId);
+
+            return userResult;
         });
     }
 
@@ -67,5 +98,24 @@ public class UsersCosmosDBPostgresSQLRepository implements UsersRepository {
             return res.value().getPwd().equals( pwd ) ? res : error(FORBIDDEN);
         else
             return res;
+    }
+
+    private void cacheUser(User user) {
+        try (Jedis jedis = RedisCache.getCachePool().getResource()) {
+            jedis.set(USER_CACHE_PREFIX + user.getid(), JSON.encode(user));
+        }
+    }
+
+    private User getCachedUser(String userId) {
+        try (Jedis jedis = RedisCache.getCachePool().getResource()) {
+            String userJson = jedis.get(USER_CACHE_PREFIX + userId);
+            return userJson != null ? JSON.decode(userJson, User.class) : null;
+        }
+    }
+
+    private void removeCachedUser(String userId) {
+        try (Jedis jedis = RedisCache.getCachePool().getResource()) {
+            jedis.del(USER_CACHE_PREFIX + userId);
+        }
     }
 }

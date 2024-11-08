@@ -17,6 +17,7 @@ import tukano.impl.JavaUsers;
 import utils.JSON;
 
 import java.util.List;
+import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -28,7 +29,6 @@ import static tukano.api.Result.error;
 import static tukano.api.Result.ok;
 
 public class UsersCosmosDBNoSQLRepository implements UsersRepository{
-    private static final Logger Log = Logger.getLogger(JavaUsers.class.getName());
     private static final String USER_CACHE_PREFIX = "user:";
     private final CosmosContainer container;
     private final Shorts shorts;
@@ -96,7 +96,9 @@ public class UsersCosmosDBNoSQLRepository implements UsersRepository{
         Result<Object> result = tryCatch( () -> container.deleteItem(oldUserResult.value(), new CosmosItemRequestOptions()).getItem());
 
         if(result.isOK()){
-            shorts.deleteAllShorts(userId, pwd, RestShorts.TOKEN);
+            Executors.defaultThreadFactory().newThread( () -> {
+                shorts.deleteAllShorts(userId, pwd, RestShorts.TOKEN);
+            }).start();
             removeCachedUser(userId);
 
             return oldUserResult;
