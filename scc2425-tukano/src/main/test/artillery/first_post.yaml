@@ -5,7 +5,7 @@ config:
           duration: 1
           arrivalRate: 3
     payload:
-        path: ./users.csv
+        path: ./data/users.csv
         order: sequence # selects users sequentially, default is random
         loadAll: true # load the whole CSV
         skipHeader: true # The first line is a header, so we want to skip it

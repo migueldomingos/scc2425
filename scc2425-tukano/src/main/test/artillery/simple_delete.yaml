@@ -1,0 +1,21 @@
+config:
+  target: https://project1scc24256018360431.azurewebsites.net/rest/
+  phases:
+    - name: simple_delete
+      duration: 1
+      arrivalRate: 3
+  payload:
+    path: ./data/usersDelete.csv
+    order: sequence # selects users sequentially, default is random
+    loadAll: true # load the whole CSV
+    skipHeader: true # The first line is a header, so we want to skip it
+    delimiter: "," # standard delimiter
+    skipEmptyLines: true # not important in our case
+    fields:
+      - "id"
+      - "pwd"
+scenarios:
+  - name: TuKanoDelete
+    flow:
+      - delete:
+          url: "/users/{{ id }}?pwd={{ pwd }}" # Using id as PathParam and pwd as QueryParam
