@@ -216,8 +216,6 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository {
     public Result<Void> deleteAllShorts(String userId) {
         return DB.transaction( (hibernate) -> {
 
-            invalidateCacheForUser(userId);
-
             //delete shorts
             var query1 = format("DELETE FROM Shorts s WHERE s.ownerId = '%s'", userId);
             hibernate.createNativeQuery(query1, Short.class).executeUpdate();
@@ -230,6 +228,7 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository {
             var query3 = format("DELETE FROM Likes l WHERE l.ownerId = '%s' OR l.userId = '%s'", userId, userId);
             hibernate.createNativeQuery(query3, Likes.class).executeUpdate();
 
+            invalidateCacheForUser(userId);
         });
     }
 
