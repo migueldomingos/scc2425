@@ -65,16 +65,16 @@ public class UsersCosmosDBPostgresSQLRepository implements UsersRepository {
     public Result<User> deleteUser(String userId, String pwd) {
         return errorOrResult( validatedUserOrError(DB.getOne( userId, User.class), pwd), user -> {
 
-            // Delete user shorts and related info asynchronously in a separate thread
             Executors.defaultThreadFactory().newThread( () -> {
-                JavaShorts.getInstance().deleteAllShorts(userId, pwd, Token.get(userId));
-                JavaBlobs.getInstance().deleteAllBlobs(userId, Token.get(userId));
-            }).start();
+                    JavaBlobs.getInstance().deleteAllBlobs(userId, Token.get(userId));
+                    JavaShorts.getInstance().deleteAllShorts(userId, pwd, Token.get(userId));
+                }).start();
 
             Result<User> userResult = DB.deleteOne( user);
 
-            if (userResult.isOK())
+            if (userResult.isOK()){
                 removeCachedUser(userId);
+            }
 
             return userResult;
         });

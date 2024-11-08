@@ -69,7 +69,7 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository {
             var query = format("DELETE FROM Likes l WHERE l.shortId = '%s'", shrt.getid());
             hibernate.createNativeQuery( query, Likes.class).executeUpdate();
 
-            JavaBlobs.getInstance().delete(shrt.getBlobUrl(), Token.get() );
+            JavaBlobs.getInstance().delete(shrt.getBlobUrl(), Token.get());
         });
 
         if (resultDelete.isOK())
@@ -279,20 +279,14 @@ public class ShortsCosmosDBPostgresSQLRepository implements ShortsRepository {
 
     private void invalidateCacheForUser(String userId) {
         try (Jedis jedis = RedisCache.getCachePool().getResource()) {
-            Log.info("passou aqui 1");
-
 
             // Invalida o cache dos shorts do usuário
             String shortsCacheKey = GETSHORTS_CACHE_PREFIX + userId;
             jedis.del(shortsCacheKey);
 
-            Log.info("passou aqui 2");
-
             // Invalida o cache dos seguidores do usuário
             String followersCacheKey = FOLLOWERS_CACHE_PREFIX + userId;
             jedis.del(followersCacheKey);
-
-            Log.info("passou aqui 3");
 
             // Obtém todos os shorts do usuário e invalida o cache de likes para cada um
             String queryUserShorts = format("SELECT s.id FROM shorts s WHERE s.ownerId = '%s'", userId);

@@ -165,7 +165,6 @@ public class JavaBlobs implements Blobs {
 		}
 
 		for (String s: shorts){
-
 			try {
 				BlobClient blob = containerClient.getBlobClient(s);
 

@@ -67,7 +67,7 @@ public class Test {
 		
 		var s2id = s2.value().getid();
 
-		show(shorts.follow("liskov", "wales", true, "54321"));
+		/*show(shorts.follow("liskov", "wales", true, "54321"));
 		show(shorts.follow("wales", "liskov", true, "12345"));
 		show(shorts.followers("wales", "12345"));
 		show(shorts.like(s2id, "wales", true, "12345"));
@@ -79,7 +79,8 @@ public class Test {
 		show(shorts.getShort( s2id ));
 		show(blobs.download(blobUrl.toString(), token));
 		show(shorts.getShorts( "wales" ));
-		show(shorts.followers("wales", "12345"));
+		show(shorts.followers("wales", "12345"));*/
+		show(shorts.getShorts( "wales" ));
 		show(users.deleteUser("wales", "12345"));
 		show(users.deleteUser("liskov", "54321"));
 
