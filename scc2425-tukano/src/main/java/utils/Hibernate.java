@@ -1,6 +1,6 @@
 package utils;
 
-import java.io.File;
+import java.util.logging.Logger;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -21,15 +21,18 @@ import tukano.api.Result.ErrorCode;
  * @param <Session>
  */
 public class Hibernate {
-//	private static Logger Log = Logger.getLogger(Hibernate.class.getName());
+	//private static Logger Log = Logger.getLogger(Hibernate.class.getName());
 
-	private static final String HIBERNATE_CFG_FILE = "hibernate.cfg.xml";
 	private SessionFactory sessionFactory;
 	private static Hibernate instance;
 
 	private Hibernate() {
 		try {
-			sessionFactory = new Configuration().configure(new File(HIBERNATE_CFG_FILE)).buildSessionFactory();
+			sessionFactory = new Configuration().configure()
+					.setProperty("connection.username", System.getProperty("COSMOSDB_POSTGRES_USER"))
+					.setProperty("connection.password", System.getProperty("COSMOSDB_POSTGRES_PASSWORD"))
+					.setProperty("connection.url", System.getProperty("COSMOSDB_POSTGRES_URL"))
+					.buildSessionFactory();
 
 		} catch (Exception e) {
 			e.printStackTrace();

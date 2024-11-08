@@ -6,6 +6,7 @@ import tukano.impl.rest.RestBlobsResource;
 import tukano.impl.rest.RestShortsResource;
 import tukano.impl.rest.RestUsersResource;
 import utils.Args;
+import utils.Hibernate;
 import utils.Props;
 
 import java.util.HashSet;
@@ -23,6 +24,8 @@ public class MainApplication extends Application {
         resources.add(RestBlobsResource.class);
         resources.add(RestShortsResource.class);
         resources.add(RestUsersResource.class);
+
+        singletons.add(Hibernate.class);
 
         Token.setSecret(Args.valueOf("-secret", ""));
         Props.load("azurekeys-region.props");
