@@ -92,8 +92,6 @@ public class JavaBlobs implements Blobs {
 		if( ! validBlobId( blobId, token ) )
 			return error(FORBIDDEN);
 
-		System.out.println("Passou 1");
-
 		try {
 
 			BinaryData cachedBytes = getCachedBytes(blobId);
@@ -101,18 +99,12 @@ public class JavaBlobs implements Blobs {
 				return ok(cachedBytes.toBytes());
 			}
 
-			System.out.println("Passou 2");
-
 			byte[] arr;
 
 			BlobClient blobClient = containerClient.getBlobClient(blobId);
 
-			System.out.println("Passou 3");
-
 			if (blobClient.exists()) {
 				arr = blobClient.downloadContent().toBytes();
-
-				System.out.println("Passou 4");
 
 				Log.info(() -> format("Blob found and downloaded: blobId = %s, size = %d bytes", blobId, arr.length));
 				return Result.ok(arr);
