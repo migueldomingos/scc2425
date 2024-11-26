@@ -36,7 +36,7 @@
 					<username>maven</username>
 					<password>s3cret</password>
 					<update>true</update>
-					<path>/project1_SCC</path>
+					<path>/project2_SCC</path>
 				</configuration>
 			</plugin>
 			<plugin>

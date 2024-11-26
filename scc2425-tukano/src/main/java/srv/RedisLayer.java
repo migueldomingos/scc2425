@@ -9,7 +9,7 @@ import java.util.logging.Logger;
 
 public class RedisLayer {
 	private final Jedis redisInstance = RedisCache.getCachePool().getResource();
-	private static final String COOKIES_CACHE_PREFIX = "cookie:";
+	private static final String SESSION_CACHE_PREFIX = "session:";
 	private static RedisLayer instance;
 	private static final Logger Log = Logger.getLogger(RedisLayer.class.getName());
 
@@ -23,17 +23,17 @@ public class RedisLayer {
 	
 	public void putSession(Session s) {
 		try {
-			redisInstance.set(COOKIES_CACHE_PREFIX + s.uid(), JSON.encode(s));
+			redisInstance.set(SESSION_CACHE_PREFIX + s.uid(), JSON.encode(s));
 		} catch(JedisException e) {
-			Log.warning("Redis access failed, unable to set cached cookie.");
+			Log.warning("Redis access failed, unable to set cached session.");
 		}
 	}
 	
 	public Session getSession(String uid) {
 		try {
-			return JSON.decode(redisInstance.get(COOKIES_CACHE_PREFIX + uid), Session.class);
+			return JSON.decode(redisInstance.get(SESSION_CACHE_PREFIX + uid), Session.class);
 		} catch(JedisException e) {
-			Log.warning("Redis access failed, unable to set cached cookie.");
+			Log.warning("Redis access failed, unable to set cached session.");
 			return null;
 		}
 	}

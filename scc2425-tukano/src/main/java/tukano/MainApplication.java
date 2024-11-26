@@ -2,6 +2,7 @@ package tukano;
 
 import jakarta.ws.rs.core.Application;
 import srv.Authentication;
+import srv.ControlResource;
 import srv.auth.RequestCookiesCleanupFilter;
 import srv.auth.RequestCookiesFilter;
 import tukano.impl.Token;
@@ -31,6 +32,7 @@ public class MainApplication extends Application {
         resources.add(RequestCookiesFilter.class);
         resources.add(RequestCookiesCleanupFilter.class);
         resources.add(Authentication.class);
+        resources.add(ControlResource.class);
 
         singletons.add(Hibernate.class);
 

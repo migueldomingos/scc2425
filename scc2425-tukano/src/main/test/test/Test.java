@@ -1,5 +1,6 @@
 package test;
 
+import srv.Authentication;
 import tukano.api.Result;
 import tukano.api.User;
 import tukano.clients.rest.RestBlobsClient;
@@ -29,29 +30,30 @@ public class Test {
 		Thread.sleep(1000);
 		
 		//var serverURI = String.format("http://localhost:%s/rest", TukanoRestServer.PORT);
-		//var serverURI = "http://127.0.0.1:8080/project1_SCC/rest/";
-		var serverURI = "https://project1scc24256018360431.azurewebsites.net/rest";
+		var serverURI = "http://127.0.0.1:8080/project2_SCC/rest/";
+		//var serverURI = "https://project1scc24256018360431.azurewebsites.net/rest";
 		
 		var blobs = new RestBlobsClient(serverURI);
 		var users = new RestUsersClient( serverURI);
 		var shorts = new RestShortsClient(serverURI);
 				
-		 show(users.createUser( new User("wales", "12345", "jimmy@wikipedia.pt", "Jimmy Wales") ));
-		 show(users.getUser("wales", "12345"));
+		 /*show(users.createUser( new User("wales", "12345", "jimmy@wikipedia.pt", "Jimmy Wales") ));
+		 show(users.getUser("wales", "12345"));*/
 		 
-		 show(users.createUser( new User("liskov", "54321", "liskov@mit.edu", "Barbara Liskov") ));
-		 show(users.updateUser("wales", "12345", new User("wales", "12345", "jimmy@wikipedia.com", "" ) ));
+	//	 show(users.createUser( new User("liskov", "54321", "liskov@mit.edu", "Barbara Liskov") ));
+		 //show(users.updateUser("wales", "12345", new User("wales", "12345", "jimmy@wikipedia.com", "" ) ));
 
-		 show(users.searchUsers(""));
-		
-		
+		 //show(users.searchUsers(""));
+		Authentication a = new Authentication();
+		System.out.println(a.login("liskov", "54321"));
+
 		 Result<tukano.api.Short> s1, s2;
 
 		 show(s2 = shorts.createShort("liskov", "54321"));
-		 show(s1 = shorts.createShort("wales", "12345"));
+		 //show(s1 = shorts.createShort("wales", "12345"));
+		 /*show(shorts.createShort("wales", "12345"));
 		 show(shorts.createShort("wales", "12345"));
-		 show(shorts.createShort("wales", "12345"));
-		 show(shorts.createShort("wales", "12345"));
+		 show(shorts.createShort("wales", "12345"));*/
 
 		var blobUrl = URI.create(s2.value().getBlobUrl());
 		System.out.println( "------->" + blobUrl );
@@ -80,9 +82,9 @@ public class Test {
 		show(blobs.download(blobUrl.toString(), token));
 		show(shorts.getShorts( "wales" ));
 		show(shorts.followers("wales", "12345"));*/
-		show(shorts.getShorts( "wales" ));
-		show(users.deleteUser("wales", "12345"));
-		show(users.deleteUser("liskov", "54321"));
+		//show(shorts.getShorts( "wales" ));
+		//show(users.deleteUser("wales", "12345"));
+		//show(users.deleteUser("liskov", "54321"));
 
 
 //

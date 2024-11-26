@@ -1,12 +1,12 @@
 package tukano.impl;
 
 import static java.lang.String.format;
+import static srv.Authentication.validateSession;
+import static tukano.api.Result.ErrorCode.*;
 import static tukano.api.Result.error;
-import static tukano.api.Result.ErrorCode.FORBIDDEN;
-import static tukano.api.Result.ErrorCode.CONFLICT;
-import static tukano.api.Result.ErrorCode.INTERNAL_ERROR;
-import static tukano.api.Result.ErrorCode.NOT_FOUND;
 import static tukano.api.Result.ok;
+
+import jakarta.ws.rs.NotAuthorizedException;
 
 import java.util.List;
 import java.util.logging.Logger;
@@ -17,6 +17,7 @@ import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobContainerClientBuilder;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.exceptions.JedisException;
+import srv.Session;
 import storageConnections.RedisCache;
 import tukano.api.Blobs;
 import tukano.api.Result;
@@ -49,6 +50,15 @@ public class JavaBlobs implements Blobs {
 	@Override
 	public Result<Void> upload(String blobId, byte[] bytes, String token) {
 		Log.info(() -> format("upload : blobId = %s, sha256 = %s, token = %s\n", blobId, Hex.of(Hash.sha256(bytes)), token));
+
+		String userID = blobId.split(":")[0];
+		try {
+			Session s = validateSession(userID);
+		} catch (NotAuthorizedException e) {
+			return error(UNAUTHORIZED);
+		}
+
+		Log.info("passou aqui");
 
 		if (!validBlobId(blobId, token))
 			return error(FORBIDDEN);
@@ -89,6 +99,13 @@ public class JavaBlobs implements Blobs {
 	public Result<byte[]> download(String blobId, String token) {
 		Log.info(() -> format("download : blobId = %s, token=%s\n", blobId, token));
 
+		String userID = blobId.split(":")[0];
+		try {
+			Session s = validateSession(userID);
+		} catch (NotAuthorizedException e) {
+			return error(UNAUTHORIZED);
+		}
+
 		if( ! validBlobId( blobId, token ) )
 			return error(FORBIDDEN);
 
@@ -123,6 +140,13 @@ public class JavaBlobs implements Blobs {
 	public Result<Void> delete(String blobId, String token) {
 		Log.info(() -> format("delete : blobId = %s, token=%s\n", blobId, token));
 
+		String userID = blobId.split(":")[0];
+		try {
+			Session s = validateSession(userID);
+		} catch (NotAuthorizedException e) {
+			return error(UNAUTHORIZED);
+		}
+
 		if (!validBlobId(blobId, token)) {
 			return error(FORBIDDEN);
 		}
@@ -149,6 +173,12 @@ public class JavaBlobs implements Blobs {
 	@Override
 	public Result<Void> deleteAllBlobs(String userId, String token) {
 		Log.info(() -> format("deleteAllBlobs : userId = %s, token=%s\n", userId, token));
+
+		try {
+			Session s = validateSession(userId);
+		} catch (NotAuthorizedException e) {
+			return error(UNAUTHORIZED);
+		}
 
 		List<String> shorts = JavaShorts.getInstance().getShorts(userId).value();
 

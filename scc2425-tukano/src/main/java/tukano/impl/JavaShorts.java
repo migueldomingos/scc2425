@@ -224,14 +224,4 @@ public class JavaShorts implements Shorts {
 
 		return repository.deleteAllShorts(userId);
 	}
-
-	private static Result.ErrorCode errorCodeFromStatus( int status ) {
-		return switch( status ) {
-			case 200 -> OK;
-			case 404 -> NOT_FOUND;
-			case 409 -> CONFLICT;
-			default -> INTERNAL_ERROR;
-		};
-	}
-	
 }

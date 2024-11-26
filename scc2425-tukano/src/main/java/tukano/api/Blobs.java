@@ -5,8 +5,8 @@ package tukano.api;
  */
 public interface Blobs {
 	String NAME = "blobs";
-	//String LINK = "http://127.0.0.1:8080/project1_SCC/rest/blobs";
-	String LINK =  "https://project1scc24256018360431.azurewebsites.net/rest/blobs";
+	String LINK = "http://127.0.0.1:8080/project2_SCC/rest/blobs";
+	//String LINK =  "https://project1scc24256018360431.azurewebsites.net/rest/blobs";
 
 	/**
 	 * Uploads a short video blob resource. Must validate the blobId to ensure it
