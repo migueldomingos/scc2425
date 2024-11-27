@@ -58,8 +58,6 @@ public class JavaBlobs implements Blobs {
 			return error(UNAUTHORIZED);
 		}
 
-		Log.info("passou aqui");
-
 		if (!validBlobId(blobId, token))
 			return error(FORBIDDEN);
 

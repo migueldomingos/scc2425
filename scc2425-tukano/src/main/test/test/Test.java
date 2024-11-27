@@ -1,6 +1,5 @@
 package test;
 
-import srv.Authentication;
 import tukano.api.Result;
 import tukano.api.User;
 import tukano.clients.rest.RestBlobsClient;
@@ -9,7 +8,11 @@ import tukano.clients.rest.RestUsersClient;
 
 import java.io.File;
 import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Random;
 
 public class Test {
@@ -31,29 +34,39 @@ public class Test {
 		
 		//var serverURI = String.format("http://localhost:%s/rest", TukanoRestServer.PORT);
 		var serverURI = "http://127.0.0.1:8080/project2_SCC/rest/";
+		var uriLogin = "http://127.0.0.1:8080/project2_SCC/rest/login";
+		String blobEndpoint = "http://127.0.0.1:8080/project2_SCC/rest/blobs";
 		//var serverURI = "https://project1scc24256018360431.azurewebsites.net/rest";
-		
+
 		var blobs = new RestBlobsClient(serverURI);
 		var users = new RestUsersClient( serverURI);
 		var shorts = new RestShortsClient(serverURI);
-				
-		 /*show(users.createUser( new User("wales", "12345", "jimmy@wikipedia.pt", "Jimmy Wales") ));
-		 show(users.getUser("wales", "12345"));*/
-		 
-	//	 show(users.createUser( new User("liskov", "54321", "liskov@mit.edu", "Barbara Liskov") ));
-		 //show(users.updateUser("wales", "12345", new User("wales", "12345", "jimmy@wikipedia.com", "" ) ));
 
-		 //show(users.searchUsers(""));
-		Authentication a = new Authentication();
-		System.out.println(a.login("liskov", "54321"));
+		// Step 1: Login and Retrieve Session Cookie
+		HttpClient client = HttpClient.newHttpClient();
+		String form = "username=liskov&password=54321";
+		HttpRequest loginRequest = HttpRequest.newBuilder()
+				.uri(URI.create(uriLogin))
+				.header("Content-Type", "application/x-www-form-urlencoded")
+				.POST(HttpRequest.BodyPublishers.ofString(form))
+				.build();
 
-		 Result<tukano.api.Short> s1, s2;
+		HttpResponse<String> loginResponse = client.send(loginRequest, HttpResponse.BodyHandlers.ofString());
 
-		 show(s2 = shorts.createShort("liskov", "54321"));
-		 //show(s1 = shorts.createShort("wales", "12345"));
-		 /*show(shorts.createShort("wales", "12345"));
-		 show(shorts.createShort("wales", "12345"));
-		 show(shorts.createShort("wales", "12345"));*/
+		// Extract cookie
+		List<String> cookies = loginResponse.headers().allValues("Set-Cookie");
+		if (cookies.isEmpty()) {
+			System.out.println("No cookies received. Login failed.");
+			return;
+		}
+		String sessionCookie = cookies.get(0).split(";")[0];
+		System.out.println("Session Cookie: " + sessionCookie);
+
+		Result<tukano.api.Short> s1, s2;
+
+		show(users.createUser( new User("liskov", "54321", "liskov@mit.edu", "Barbara Liskov") ));
+
+		show(s2 = shorts.createShort("liskov", "54321"));
 
 		var blobUrl = URI.create(s2.value().getBlobUrl());
 		System.out.println( "------->" + blobUrl );
@@ -64,38 +77,7 @@ public class Test {
 		var token = blobUrl.getQuery().split("=")[1];
 		System.out.println("Token: " + token);
 
-		show(blobs.upload(blobUrl.toString(), randomBytes( 100 ), token));
-
-		
-		var s2id = s2.value().getid();
-
-		/*show(shorts.follow("liskov", "wales", true, "54321"));
-		show(shorts.follow("wales", "liskov", true, "12345"));
-		show(shorts.followers("wales", "12345"));
-		show(shorts.like(s2id, "wales", true, "12345"));
-		show(shorts.like(s1.value().getid(), "liskov", true, "54321"));
-		show(shorts.deleteShort(s1.value().getid(), "12345"));
-		show(shorts.deleteAllShorts("wales", "12345", ""));
-		show(shorts.getFeed("liskov", "54321"));
-		show(shorts.likes(s2id , "54321"));
-		show(shorts.getShort( s2id ));
-		show(blobs.download(blobUrl.toString(), token));
-		show(shorts.getShorts( "wales" ));
-		show(shorts.followers("wales", "12345"));*/
-		//show(shorts.getShorts( "wales" ));
-		//show(users.deleteUser("wales", "12345"));
-		//show(users.deleteUser("liskov", "54321"));
-
-
-//
-//		
-//		blobs.forEach( b -> {
-//			var r = b.download(blobId);
-//			System.out.println( Hex.of(Hash.sha256( bytes )) + "-->" + Hex.of(Hash.sha256( r.value() )));
-//			
-//		});
-		
-		//show(users.deleteUser("wales", "12345"));
+		uploadBlob(client, blobEndpoint, blobId, randomBytes( 100 ), sessionCookie, token);
 
 		System.exit(0);
 	}
@@ -120,4 +102,20 @@ public class Test {
 		return bb.array();
 		
 	}
+
+	private static void uploadBlob(HttpClient client, String blobEndpoint, String blobId, byte[] data, String sessionCookie, String token) throws Exception {
+		String uploadUrl = blobEndpoint + "/" + blobId + "?token=" + token;
+
+		HttpRequest request = HttpRequest.newBuilder()
+				.uri(URI.create(uploadUrl))
+				.header("Content-Type", "application/octet-stream")
+				.header("Cookie", sessionCookie)
+				.POST(HttpRequest.BodyPublishers.ofByteArray(data))
+				.build();
+
+		HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+		System.out.println("Upload Response: " + response.statusCode() + " - " + response.body());
+	}
+
+
 }
